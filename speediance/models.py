@@ -46,8 +46,12 @@ class Workout:
         ts = self.start_timestamp or self.end_timestamp
         if not ts:
             return None
-        # API timestamps are in milliseconds
-        return datetime.fromtimestamp(ts / 1000).date()
+        # Speediance sends seconds; some endpoints may send milliseconds.
+        # Normalize: anything above 1e12 is milliseconds.
+        ts = float(ts)
+        if ts > 1e12:
+            ts /= 1000.0
+        return datetime.fromtimestamp(ts).date()
 
     def exercises(self):
         """Group sets by exercise name, preserving first-seen order."""

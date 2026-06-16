@@ -6,6 +6,7 @@ on:
     paths:
       - SKILL.md
       - pyproject.toml
+  workflow_dispatch:
 
 jobs:
   publish:

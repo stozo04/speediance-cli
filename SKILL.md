@@ -1,11 +1,28 @@
 ---
 name: speediance
-description: Read completed workouts and push custom training programs to your Speediance (Gym Monster) smart cable machine via its cloud API.
+description: >
+  Read completed workouts (summaries and full per-set detail), browse and export the
+  exercise catalog, push custom training programs to your Speediance (Gym Monster) smart
+  cable machine via its cloud API, and optionally sync sessions into local Markdown week
+  sheets. Authenticates with your account credentials, caches a session token to a local
+  file (.token.json), and makes outbound HTTPS requests to the Speediance cloud API.
 metadata:
   openclaw:
     emoji: 🏋️
     homepage: https://github.com/stozo04/speediance-cli
     primaryEnv: SPEEDIANCE_EMAIL
+    permissions:
+      network:
+        - "Speediance cloud API (HTTPS) — authentication, workout history, exercise catalog, program creation"
+      files.read:
+        - "config.json — optional credential/config file in the working directory"
+        - ".token.json — cached session token (path overridable via SPEEDIANCE_TOKEN_CACHE)"
+        - "plan JSON files passed to the push command"
+        - "Markdown week sheets (sync command only)"
+      files.write:
+        - ".token.json — session token written after login and refreshed automatically"
+        - "library.json — exercise catalog dump (library command)"
+        - "Markdown week sheets (sync command only, opt-in)"
     requires:
       bins:
         - python3

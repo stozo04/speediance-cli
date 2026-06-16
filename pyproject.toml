@@ -1,0 +1,18 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "speediance-cli"
+version = "0.1.0"
+description = "CLI for the Speediance (Gym Monster) smart cable machine"
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.9"
+dependencies = ["requests>=2.31"]
+
+[project.scripts]
+speediance = "speediance.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/stozo04/speediance-cli"

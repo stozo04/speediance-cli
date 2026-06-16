@@ -1,4 +1,4 @@
-"""Speediance CLI — sync completed Gym Monster workouts into your training log."""
+"""Speediance CLI - sync completed Gym Monster workouts into your training log."""
 import sys
 import argparse
 import logging
@@ -7,6 +7,7 @@ from datetime import date, datetime, timedelta
 from . import config as cfgmod
 from .client import SpeedianceClient, AuthError
 from . import sheet as sheetmod
+from . import templates as tpl
 
 
 def _client(cfg, use_cache=True):
@@ -83,6 +84,44 @@ def cmd_sync(args):
         print("\nDone. Open the sheet to review.")
 
 
+def cmd_library(args):
+    cfg = cfgmod.load_config()
+    c = _client(cfg)
+    lib = tpl.fetch_library(c, device_type=int(cfg.get("device_type", 1)))
+    cfgmod.save_token_cache(c.token, c.user_id)
+    import json as _json
+    with open(args.out, "w", encoding="utf-8") as f:
+        _json.dump(lib, f, ensure_ascii=False, indent=2)
+    print(f"Saved {len(lib)} exercises to {args.out}")
+    if args.search:
+        q = args.search.lower()
+        hits = [e for e in lib if q in e["name"].lower() or q in e.get("muscle", "").lower()]
+        print(f"\n{len(hits)} match '{args.search}':")
+        for e in hits[:40]:
+            print(f"  [{e['id']}] {e['name']} ({e.get('muscle','')})")
+
+
+def cmd_push(args):
+    cfg = cfgmod.load_config()
+    plan = tpl.load_plan(args.plan)
+    c = _client(cfg)
+    n_ex = len(plan["exercises"])
+    n_sets = sum(len(e.get("sets", [])) for e in plan["exercises"])
+    print(f"Plan: {plan['name']} - {n_ex} exercises, {n_sets} sets")
+    if args.dry_run:
+        payload = tpl.build_payload(c, plan["name"], plan["exercises"],
+                                    device_type=int(cfg.get("device_type", 1)))
+        cfgmod.save_token_cache(c.token, c.user_id)
+        print(f"[dry-run] built payload, totalCapacity={payload['totalCapacity']:.0f}; not sent.")
+        for a in payload["actionLibraryList"]:
+            print(f"    groupId {a['groupId']}: reps {a['setsAndReps']} | weights {a['weights']}")
+        return
+    data = tpl.create_template(c, plan["name"], plan["exercises"],
+                               device_type=int(cfg.get("device_type", 1)))
+    cfgmod.save_token_cache(c.token, c.user_id)
+    print(f"Created template '{plan['name']}' on your Speediance account. Open the app to run it.")
+
+
 def main(argv=None):
     logging.basicConfig(level=logging.WARNING, format="%(levelname)s %(message)s")
     p = argparse.ArgumentParser(prog="speediance", description="Sync Speediance workouts into your training log.")
@@ -100,6 +139,16 @@ def main(argv=None):
     sp.add_argument("--days", type=int, default=3, help="lookback window to search")
     sp.add_argument("--dry-run", action="store_true", help="print what would be written, change nothing")
     sp.set_defaults(func=cmd_sync)
+
+    sp = sub.add_parser("library", help="Fetch your exercise catalog (ids) to a file")
+    sp.add_argument("--out", default="library.json")
+    sp.add_argument("--search", help="filter printed results by name/muscle")
+    sp.set_defaults(func=cmd_library)
+
+    sp = sub.add_parser("push", help="Create a Speediance program from a plan JSON")
+    sp.add_argument("plan", help="path to plan .json")
+    sp.add_argument("--dry-run", action="store_true", help="build payload, do not send")
+    sp.set_defaults(func=cmd_push)
 
     args = p.parse_args(argv)
     try:

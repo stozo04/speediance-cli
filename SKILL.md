@@ -45,7 +45,7 @@ Install the CLI:
 
 ```bash
 pip install git+https://github.com/stozo04/speediance-cli
-speediance login   # authenticates and caches a token
+speediance-cli login   # authenticates and caches a token
 ```
 
 Or clone and run as a module (no install needed):
@@ -56,7 +56,7 @@ pip install -r requirements.txt
 python -m speediance login
 ```
 
-Once installed, `speediance` and `python -m speediance` are interchangeable.
+Once installed, `speediance-cli` and `python -m speediance` are interchangeable.
 
 ## Credentials
 
@@ -84,8 +84,8 @@ Alternatively, write a `config.json` in the working directory (gitignored by the
 ### Read workouts
 
 ```bash
-speediance workouts --days 7 --json      # recent sessions (summaries)
-speediance session <training_id> --json  # full per-set detail for one session
+speediance-cli workouts --days 7 --json      # recent sessions (summaries)
+speediance-cli session <training_id> --json  # full per-set detail for one session
 ```
 
 Sample `workouts --json` output:
@@ -127,13 +127,13 @@ Sample `session <id> --json` output:
 ### Browse the exercise catalog
 
 ```bash
-speediance library --search "chest" --json   # filter by name or muscle
-speediance library                           # save full catalog to library.json
+speediance-cli library --search "chest" --json   # filter by name or muscle
+speediance-cli library                           # save full catalog to library.json
 ```
 
 Returns `[{id, name, muscle, tab}]`. The `id` is required for plan JSON.
 A committed `library.json` snapshot ships with the repo (Gym Monster v1) for offline
-browsing — regenerate with `speediance library` to get the freshest catalog or a
+browsing — regenerate with `speediance-cli library` to get the freshest catalog or a
 different device's exercises.
 
 ### Create a training program
@@ -141,8 +141,8 @@ different device's exercises.
 Author a plan JSON, then push it — the program appears on the machine immediately:
 
 ```bash
-speediance push plan.json --dry-run   # preview payload, no network write
-speediance push plan.json             # create it on the account
+speediance-cli push plan.json --dry-run   # preview payload, no network write
+speediance-cli push plan.json             # create it on the account
 ```
 
 **Plan JSON format:**
@@ -173,7 +173,7 @@ speediance push plan.json             # create it on the account
 
 | Field | Type | Notes |
 |---|---|---|
-| `id` | int | From `speediance library` — IDs differ per account/device |
+| `id` | int | From `speediance-cli library` — IDs differ per account/device |
 | `weight` | float | **Kilograms** |
 | `mode` | int | 1=Standard, 2=Eccentric, 3=Isokinetic, 4=Constant, 5=Spotter |
 | `rest` | int | Seconds between sets |
@@ -184,8 +184,8 @@ If you keep workout logs as `WEEKS/Week-XX.md` Markdown checklists, `sync` write
 completed session into the matching file automatically:
 
 ```bash
-speediance sync --weeks-dir /path/to/WEEKS --date today
-speediance sync --weeks-dir /path/to/WEEKS --date 2025-06-10
+speediance-cli sync --weeks-dir /path/to/WEEKS --date today
+speediance-cli sync --weeks-dir /path/to/WEEKS --date 2025-06-10
 ```
 
 This is entirely opt-in — ignore it if you don't use that convention. Core commands

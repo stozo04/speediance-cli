@@ -12,7 +12,10 @@ requires-python = ">=3.9"
 dependencies = ["requests>=2.31"]
 
 [project.scripts]
-speediance = "speediance.cli:main"
+speediance-cli = "speediance.cli:main"
 
 [project.urls]
 Homepage = "https://github.com/stozo04/speediance-cli"
+
+[tool.hatch.build.targets.wheel]
+packages = ["speediance"]

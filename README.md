@@ -1,8 +1,8 @@
 # Speediance CLI
 
 Pull your **completed** Speediance Gym Monster workouts and auto-write them into your
-weekly training sheet (`WEEKS/Week-XX.md`) — weights filled in, the day checked off,
-and a full per-set log dropped into the notes.
+weekly training sheet (`WEEKS/Week-XX.md`), **and** build workout programs and push them
+to your machine so there's nothing to reference mid-session.
 
 > Unofficial. Uses the Speediance cloud API (reverse-engineered from the Android app).
 > Personal use with your own account. A future Speediance update could change the API;
@@ -17,7 +17,7 @@ pip install -r requirements.txt
 cp config.example.json config.json   # then edit it with your login
 ```
 
-`config.json` (gitignored — your password never leaves this machine):
+`config.json` (gitignored - your password never leaves this machine):
 
 | key | meaning |
 |-----|---------|
@@ -38,38 +38,66 @@ python -m speediance login
 # list recent completed sessions
 python -m speediance workouts --days 3
 
-# preview today's sync without changing anything
+# sync a completed session into the current week sheet
 python -m speediance sync --dry-run
-
-# sync today's session into the current week sheet
 python -m speediance sync
-
-# sync a specific day
 python -m speediance sync --date 2026-06-15
 ```
 
 Run `sync` **after** you finish and save the workout in the Speediance app.
 
-## How matching works
+## Building programs (so there's nothing to reference mid-workout)
 
-Each exercise from Speediance is fuzzy-matched to a row in your week sheet (names don't
-have to be identical — "Chest Press" matches "Cable chest press (Gym Monster)"). Matched
-rows get their weights filled and box checked. **Anything that doesn't match is still
-captured** in full in the notes block, so no data is ever lost.
+Freestyle "Free Lift" sessions record only totals (time/calories/volume) - no per-exercise
+detail. Sessions run from a **custom program** record everything. So author the workout as
+a program, push it to your account, do it, then `sync` pulls full per-set results back.
 
-## Note on weight units
+```bash
+# 1) cache YOUR exercise catalog (ids differ per device) and search it
+python -m speediance library
+python -m speediance library --search "chest press"
 
-The weight number comes straight from the API and is labeled with your `unit` setting.
-On your first sync, eyeball one exercise against what the Speediance app shows and confirm
-the unit looks right; tell the coach if it's off and we'll adjust.
+# 2) preview the payload a plan would create (no network write)
+python -m speediance push plans/example-push.json --dry-run
+
+# 3) create the program on your account, then open the app to run it
+python -m speediance push plans/my-week-push.json
+```
+
+### Plan JSON
+
+A *plan* is just JSON - the planner that writes it can be a human, a coach, or an LLM:
+
+```json
+{
+  "name": "Week 1 - Push",
+  "exercises": [
+    {"id": 304, "title": "Standing Dual-Handle Chest Press",
+     "sets": [{"reps": 15, "weight": 18, "mode": 1, "rest": 75}]}
+  ]
+}
+```
+
+- `id` - exercise id from `speediance library`
+- `weight` - **kilograms** (stored as kg x 2.2 internally; verify on the machine on your first push and adjust if your display unit differs)
+- `mode` - 1 Standard, 2 Eccentric, 3 Isokinetic, 4 Constant, 5 Spotter
+- `rest` - seconds
+
+## How sync matching works
+
+Each exercise from a completed session is fuzzy-matched to a row in your week sheet (names
+don't have to be identical). Matched rows get weights filled and the box checked. Anything
+that doesn't match is still captured in full in the notes block, so no data is lost.
 
 ## Files
 
-- `speediance/client.py` — API auth + endpoints
-- `speediance/sheet.py`  — writes sessions into Week-XX.md (the matching logic)
-- `speediance/cli.py`    — the `login` / `workouts` / `sync` commands
-- `tests/test_sheet.py`  — offline test of the sheet writer
+- `speediance/client.py`    - API auth + endpoints
+- `speediance/templates.py` - fetch library; build & create programs from a plan JSON
+- `speediance/sheet.py`     - writes completed sessions into Week-XX.md
+- `speediance/cli.py`       - `login` / `workouts` / `sync` / `library` / `push`
+- `plans/`                  - workout plan JSON files
+- `tests/`                  - offline tests (no network)
 
 ## License
 
-MIT — see `LICENSE`.
+MIT - see `LICENSE`.

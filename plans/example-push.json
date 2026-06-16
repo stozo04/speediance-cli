@@ -1,0 +1,23 @@
+{
+  "name": "Example - Push",
+  "_comment": "Sample plan. IDs are illustrative; run `speediance library` to get YOUR Gym Monster ids, then the coach fills real plans. weight is KG, mode 1=Standard, rest in seconds.",
+  "exercises": [
+    {
+      "id": 304,
+      "title": "Standing Dual-Handle Chest Press",
+      "sets": [
+        {"reps": 15, "weight": 18, "mode": 1, "rest": 75},
+        {"reps": 15, "weight": 18, "mode": 1, "rest": 75},
+        {"reps": 12, "weight": 20, "mode": 1, "rest": 75}
+      ]
+    },
+    {
+      "id": 465,
+      "title": "Standing Dual-Handle Lateral Raise",
+      "sets": [
+        {"reps": 18, "weight": 7, "mode": 1, "rest": 60},
+        {"reps": 18, "weight": 7, "mode": 1, "rest": 60}
+      ]
+    }
+  ]
+}

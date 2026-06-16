@@ -95,6 +95,17 @@ class SpeedianceClient:
                                  params=params, timeout=20).json()
         return r
 
+    def _post(self, path, json_body):
+        if not self.token:
+            self.login()
+        r = self.session.post(f"{self.base}{path}", headers=self._headers(),
+                              json=json_body, timeout=30).json()
+        if r.get("code") == 91:  # token expired
+            self.login()
+            r = self.session.post(f"{self.base}{path}", headers=self._headers(),
+                                  json=json_body, timeout=30).json()
+        return r
+
     # ---- data ---------------------------------------------------------
     def fetch_workouts(self, days=3):
         """Completed sessions over the last `days` days."""

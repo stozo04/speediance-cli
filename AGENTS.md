@@ -6,6 +6,10 @@ built to be driven by an agent (OpenClaw, Claude, etc.): every command has a
 structured data and creates programs; the *caller* decides what to do with it
 (write to a sheet, a database, a notebook, wherever).
 
+> **Device note:** built and tested for the **Gym Monster (v1)** (`device_type = 1`).
+> A **Gym Monster 2** exists and may use a different device type and exercise ids -
+> UNTESTED. Override via `SPEEDIANCE_DEVICE_TYPE` or `device_type` in config.json.
+
 ## 1. Setup (do this once)
 
 ```bash
@@ -19,7 +23,8 @@ pip install -r requirements.txt
 The CLI needs the user's Speediance **email + password**. Resolve them in this order:
 
 1. **Environment variables** (preferred): `SPEEDIANCE_EMAIL`, `SPEEDIANCE_PASSWORD`,
-   optional `SPEEDIANCE_REGION` (`Global` default, or `EU`).
+   optional `SPEEDIANCE_REGION` (`Global` default, or `EU`) and
+   `SPEEDIANCE_DEVICE_TYPE` (`1` = Gym Monster v1, the only tested device).
 2. **`config.json`** in the repo root - copy `config.example.json` to `config.json`
    and fill it in. This file is gitignored; never commit it.
 3. If neither is set, **ask the user** (or read from their secret store / password
@@ -53,7 +58,12 @@ Sessions run from a **program** (see below) return everything.
 # 1) cache the user's exercise catalog (ids differ per device/account)
 python -m speediance library            # writes library.json: {id, name, muscle, tab}
 python -m speediance library --search "row" --json
+```
 
+A committed `library.json` snapshot ships with the repo (Gym Monster 1); regenerate it
+with the command above for the freshest catalog or a different device.
+
+```bash
 # 2) write a plan JSON (you, the agent, author this), then:
 python -m speediance push plan.json --dry-run   # preview payload
 python -m speediance push plan.json             # create it on the account
@@ -92,6 +102,7 @@ If you don't use that sheet convention, ignore `sync` and consume `session --jso
 
 - **stdout is parseable** with `--json`; human hints go to stderr.
 - **Secrets**: `config.json`, `.token.json`, `.env` are gitignored. Never commit them.
+- **Device**: tested for Gym Monster 1 only; GM2 untested.
 - **Unofficial API**: endpoints live in `speediance/client.py`; if the Speediance app
   updates and something breaks, that's where to patch.
 - Branch `main` is PR-protected - changes land via pull request.

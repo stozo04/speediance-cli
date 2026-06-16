@@ -6,6 +6,11 @@ reference mid-session. Every command speaks `--json`, and the tool owns no data 
 it returns structured data and creates programs; *you* (or your agent) decide what to do
 with it.
 
+> ⚠️ **Device support:** built and tested for the **Gym Monster (v1)** (`device_type = 1`).
+> A **Gym Monster 2** now exists and may use a different device type and exercise ids -
+> it is currently **UNTESTED**. Set `SPEEDIANCE_DEVICE_TYPE` (or `device_type` in
+> config.json) if you want to try another device.
+
 > Point an agent at this repo. See **[AGENTS.md](AGENTS.md)** for the full self-serve guide
 > (setup, credentials, command surface, plan schema).
 
@@ -63,7 +68,10 @@ Author a plan (a human, a coach, or an LLM can write it), then `push` it:
 
 ## Notes
 
+- Built/tested for **Gym Monster 1** only (see device note above). GM2 is untested.
 - "Free Lift" (freestyle) sessions return totals only - no per-set detail. Programs do.
+- `library.json` is a committed **snapshot** of the exercise catalog for convenience;
+  regenerate it anytime with `python -m speediance library`.
 - `config.json` / `.token.json` / `.env` are gitignored; never commit secrets.
 - `main` is PR-protected; changes land via pull request.
 
@@ -73,6 +81,7 @@ Author a plan (a human, a coach, or an LLM can write it), then `push` it:
 - `speediance/templates.py` - exercise library + create programs from a plan
 - `speediance/sheet.py`     - (optional) write sessions into Markdown week sheets
 - `speediance/cli.py`       - `login` / `workouts` / `session` / `library` / `push` / `sync`
+- `library.json`            - committed snapshot of the exercise catalog (Gym Monster 1)
 - `plans/`                  - example plan JSON
 - `tests/`                  - offline tests (no network)
 

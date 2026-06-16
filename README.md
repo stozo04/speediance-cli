@@ -18,35 +18,44 @@ with it.
 > Personal use, your own account. Built on the MIT-licensed
 > `UnofficialSpeedianceWorkoutManager` (hbui3) and `speediance-influx` (gavinmcfall).
 
-## Quickstart
+## Install
+
+**Via pip** (installs the `speediance-cli` command globally):
+
+```bash
+pip install git+https://github.com/stozo04/speediance-cli
+speediance-cli login
+```
+
+**Clone and run** (no install needed):
 
 ```bash
 git clone https://github.com/stozo04/speediance-cli && cd speediance-cli
 pip install -r requirements.txt
-cp config.example.json config.json     # add your email + password (gitignored)
 python -m speediance login
 ```
 
-Credentials can also come from env vars (`SPEEDIANCE_EMAIL`, `SPEEDIANCE_PASSWORD`,
-`SPEEDIANCE_REGION`) - see `.env.example`. SSO/Google accounts: set a password in the
-Speediance app once.
+`speediance-cli` (installed) and `python -m speediance` (cloned) are interchangeable.
+
+Credentials via env vars (`SPEEDIANCE_EMAIL`, `SPEEDIANCE_PASSWORD`, `SPEEDIANCE_REGION`)
+or a gitignored `config.json` — see `.env.example` and [AGENTS.md](AGENTS.md).
+SSO/Google accounts: set a password in the Speediance app once.
 
 ## Commands
 
 ```bash
-python -m speediance workouts --days 7 --json      # recent sessions
-python -m speediance session <training_id> --json  # full per-set detail
-python -m speediance library --search "row"        # exercise catalog (ids/names/muscles)
-python -m speediance push plan.json --dry-run      # build a program (preview)
-python -m speediance push plan.json                # create it on your account
+speediance-cli workouts --days 7 --json      # recent sessions
+speediance-cli session <training_id> --json  # full per-set detail
+speediance-cli library --search "row"        # exercise catalog (ids/names/muscles)
+speediance-cli push plan.json --dry-run      # build a program (preview)
+speediance-cli push plan.json                # create it on your account
 ```
 
 `sync` is an **optional** extra that writes a session into Markdown `WEEKS/Week-XX.md`
-checklist files (the pattern this repo's author uses). It needs a path and nothing else
-does:
+checklist files. It needs a path and nothing else does:
 
 ```bash
-python -m speediance sync --weeks-dir /path/to/WEEKS
+speediance-cli sync --weeks-dir /path/to/WEEKS
 ```
 
 ## Create a workout
@@ -64,15 +73,23 @@ Author a plan (a human, a coach, or an LLM can write it), then `push` it:
 ```
 
 `weight` is kilograms; `mode` 1=Standard; `rest` in seconds. Get `id`s from
-`speediance library`. Full schema and field notes in [AGENTS.md](AGENTS.md).
+`speediance-cli library`. Full schema and field notes in [AGENTS.md](AGENTS.md).
+
+## ClawHub skill
+
+This tool is published as a public skill on [ClawHub](https://clawhub.ai/stozo04/speediance)
+so any OpenClaw or compatible agent can install it. The skill definition lives in
+[SKILL.md](SKILL.md). ClawHub is updated automatically on every merge to `main` via
+GitHub Actions — no manual publish step needed.
 
 ## Notes
 
 - Built/tested for **Gym Monster 1** only (see device note above). GM2 is untested.
 - "Free Lift" (freestyle) sessions return totals only - no per-set detail. Programs do.
 - `library.json` is a committed **snapshot** of the exercise catalog for convenience;
-  regenerate it anytime with `python -m speediance library`.
-- `config.json` / `.token.json` / `.env` are gitignored; never commit secrets.
+  regenerate it anytime with `speediance-cli library`.
+- `config.json` / `.token.json` / `.env` / `plans/` are gitignored; never commit secrets
+  or personal workout plans.
 - `main` is PR-protected; changes land via pull request.
 
 ## Files
@@ -81,8 +98,10 @@ Author a plan (a human, a coach, or an LLM can write it), then `push` it:
 - `speediance/templates.py` - exercise library + create programs from a plan
 - `speediance/sheet.py`     - (optional) write sessions into Markdown week sheets
 - `speediance/cli.py`       - `login` / `workouts` / `session` / `library` / `push` / `sync`
+- `SKILL.md`                - ClawHub marketplace skill definition
+- `pyproject.toml`          - pip packaging (`pip install git+...`)
 - `library.json`            - committed snapshot of the exercise catalog (Gym Monster 1)
-- `plans/`                  - example plan JSON
+- `plans/`                  - personal workout plan JSONs (gitignored)
 - `tests/`                  - offline tests (no network)
 
 ## License

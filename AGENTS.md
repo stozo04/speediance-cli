@@ -12,11 +12,22 @@ structured data and creates programs; the *caller* decides what to do with it
 
 ## 1. Setup (do this once)
 
+**Option A — pip install** (gives you the `speediance-cli` command):
+
+```bash
+pip install git+https://github.com/stozo04/speediance-cli
+```
+
+**Option B — clone** (run as a module instead):
+
 ```bash
 git clone https://github.com/stozo04/speediance-cli
 cd speediance-cli
 pip install -r requirements.txt
 ```
+
+`speediance-cli <command>` (installed) and `python -m speediance <command>` (cloned) are
+interchangeable throughout this guide.
 
 ## 2. Credentials (find them, don't hardcode them)
 
@@ -36,17 +47,18 @@ Google/SSO accounts: the user must set a password in the Speediance app once
 Verify it works:
 
 ```bash
-python -m speediance login        # caches a token in .token.json (gitignored)
+speediance-cli login        # caches a token in .token.json (gitignored)
+# or: python -m speediance login
 ```
 
 ## 3. Read workouts
 
 ```bash
 # recent completed sessions (summaries)
-python -m speediance workouts --days 7 --json
+speediance-cli workouts --days 7 --json
 
 # full per-set detail for one session (reps, weight, HR per set)
-python -m speediance session <training_id> --json
+speediance-cli session <training_id> --json
 ```
 
 Note: freestyle **"Free Lift"** sessions return only totals - no per-set detail.
@@ -56,8 +68,8 @@ Sessions run from a **program** (see below) return everything.
 
 ```bash
 # 1) cache the user's exercise catalog (ids differ per device/account)
-python -m speediance library            # writes library.json: {id, name, muscle, tab}
-python -m speediance library --search "row" --json
+speediance-cli library            # writes library.json: {id, name, muscle, tab}
+speediance-cli library --search "row" --json
 ```
 
 A committed `library.json` snapshot ships with the repo (Gym Monster 1); regenerate it
@@ -65,8 +77,8 @@ with the command above for the freshest catalog or a different device.
 
 ```bash
 # 2) write a plan JSON (you, the agent, author this), then:
-python -m speediance push plan.json --dry-run   # preview payload
-python -m speediance push plan.json             # create it on the account
+speediance-cli push plan.json --dry-run   # preview payload
+speediance-cli push plan.json             # create it on the account
 ```
 
 ### Plan JSON
@@ -93,7 +105,7 @@ python -m speediance push plan.json             # create it on the account
 checklist files). It is **opt-in** and requires a path - core commands never do:
 
 ```bash
-python -m speediance sync --weeks-dir /path/to/WEEKS --date today
+speediance-cli sync --weeks-dir /path/to/WEEKS --date today
 ```
 
 If you don't use that sheet convention, ignore `sync` and consume `session --json`.

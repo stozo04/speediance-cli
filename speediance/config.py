@@ -54,3 +54,8 @@ def load_token_cache():
 def save_token_cache(token, user_id):
     with open(TOKEN_PATH, "w", encoding="utf-8") as f:
         json.dump({"token": token, "user_id": user_id}, f)
+    try:
+        import stat
+        os.chmod(TOKEN_PATH, stat.S_IRUSR | stat.S_IWUSR)  # 0o600 — owner read/write only
+    except (OSError, NotImplementedError):
+        pass

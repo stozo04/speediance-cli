@@ -30,7 +30,8 @@ def cmd_login(args):
     c = _client(cfg, use_cache=False)
     token, uid = c.login()
     cfgmod.save_token_cache(token, uid)
-    print(f"Logged in (user {uid}). Token cached.")
+    print(f"Logged in (user {uid}). Token cached to {cfgmod.TOKEN_PATH} — keep this file private.")
+    _err("Note: the token grants access to your Speediance account. Do not share or sync this file.")
 
 
 def cmd_workouts(args):

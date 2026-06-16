@@ -24,24 +24,43 @@ KG_TO_API = 2.2
 
 
 # ---- exercise library -------------------------------------------------
-def fetch_library(client, device_type=1):
-    """Return [{id, name, muscle}] for the user's device (1=Gym Monster)."""
-    cats = client._get(f"/app/actionLibraryTab/list?deviceType={device_type}")
-    out, seen = [], set()
-    for cat in (cats.get("data") or []):
-        tab_id = cat.get("id")
-        groups = client._get(
-            f"/app/actionLibraryGroup/trainingPartGroup?tabId={tab_id}&deviceTypeList={device_type}"
+def fetch_library(client, device_type=1, with_muscle=True):
+    """Return [{id, name, muscle, tab}] for the user's device.
+
+    Names come from the lightweight trainingPartGroup pass (the `title` field);
+    muscle names come from a batched detail call (mainMuscleGroupName).
+    """
+    tabs = (client._get(f"/app/actionLibraryTab/list?deviceType={device_type}").get("data") or [])
+    actions = {}
+    for t in tabs:
+        if t.get("isCustom"):
+            continue
+        grp = client._get(
+            f"/app/actionLibraryGroup/trainingPartGroup?tabId={t['id']}&deviceTypeList={device_type}"
         )
-        for muscle in (groups.get("data") or []):
-            mname = muscle.get("name") or muscle.get("trainingPartName") or ""
-            for action in muscle.get("actionLibraryGroupList", []):
-                aid = action.get("id")
-                if aid in seen:
+        for mg in (grp.get("data") or []):
+            for a in mg.get("actionLibraryGroupList", []):
+                aid = a.get("id")
+                if aid is None or aid in actions:
                     continue
-                seen.add(aid)
-                out.append({"id": aid, "name": action.get("name", ""), "muscle": mname})
-    return out
+                actions[aid] = {
+                    "id": aid,
+                    "name": a.get("title", ""),
+                    "muscle": "",
+                    "tab": t.get("name", ""),
+                }
+
+    if with_muscle and actions:
+        ids = list(actions.keys())
+        for i in range(0, len(ids), 50):
+            chunk = ids[i:i + 50]
+            q = "&".join(f"ids={x}" for x in chunk)
+            det = client._get(f"/app/actionLibraryGroup/list?{q}")
+            for d in (det.get("data") or []):
+                if d.get("id") in actions:
+                    actions[d["id"]]["muscle"] = d.get("mainMuscleGroupName", "") or ""
+
+    return list(actions.values())
 
 
 # ---- template creation ------------------------------------------------
@@ -76,7 +95,7 @@ def build_payload(client, name, exercises, device_type=1):
         variant_id = id_map.get(group_id)
         if not variant_id:
             raise ValueError(f"Could not resolve exercise id {group_id} ({ex.get('title','?')}). "
-                             f"Run `speediance library --refresh` and check the id.")
+                             f"Run `speediance library` and check the id.")
         is_uni = unilateral.get(group_id, False)
 
         reps_list, weights_list, break_list = [], [], []

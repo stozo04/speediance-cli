@@ -16,7 +16,10 @@ jobs:
       - name: Install clawhub CLI
         run: npm install -g clawhub
 
-      - name: Publish skill
+      - name: Authenticate clawhub
+        run: clawhub login --token "$CLAWHUB_TOKEN"
         env:
           CLAWHUB_TOKEN: ${{ secrets.CLAWHUB_TOKEN }}
+
+      - name: Publish skill
         run: clawhub skill publish . --owner stozo04 --slug speediance --name "Speediance Gym Monster"

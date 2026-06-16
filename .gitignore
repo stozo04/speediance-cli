@@ -1,5 +1,7 @@
 config.json
 .token.json
+.env
+library.json
 __pycache__/
 *.pyc
 .venv/

@@ -5,7 +5,10 @@ on:
     branches: [main]
     paths:
       - SKILL.md
-      - pyproject.toml
+  workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
   publish:

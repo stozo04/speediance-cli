@@ -1,0 +1,44 @@
+# golangci-lint v2 configuration (GOAL.md §17).
+# Start conservative: the "standard" meta-set (govet, staticcheck, errcheck,
+# ineffassign, unused) plus a few high-signal extras. bodyclose guards the HTTP
+# client against leaked response bodies — load-bearing for this tool.
+version: "2"
+
+linters:
+  default: standard
+  enable:
+    - revive      # style/lint rules (golint successor)
+    - gosec       # security issues (e.g. file perms on the token cache)
+    - misspell    # comment/string typos
+    - bodyclose   # http.Response.Body always closed
+    - errorlint   # correct errors.Is/As and %w usage
+    - nilnil      # no (nil, nil) returns
+  settings:
+    gosec:
+      excludes:
+        # G304: file paths are user-supplied by design (--config, --out, plan
+        # file, weeks dir). We validate intent, not provenance.
+        - G304
+        # G306: library.json and the Markdown week sheets are intentionally
+        # world-readable user artifacts (0644), matching the Python tool. The
+        # token cache and config.json use 0600 explicitly.
+        - G306
+        # G101: these are environment-variable *names*, not credentials.
+        - G101
+  exclusions:
+    generated: lax
+    rules:
+      # Test files may take liberties (long funcs, unchecked errors in helpers).
+      - path: _test\.go
+        linters:
+          - gosec
+          - errcheck
+
+formatters:
+  enable:
+    - gofumpt
+    - goimports
+  settings:
+    goimports:
+      local-prefixes:
+        - github.com/stozo04/speediance-cli

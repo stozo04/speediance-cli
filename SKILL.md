@@ -6,6 +6,7 @@ description: >
   cable machine via its cloud API, and optionally sync sessions into local Markdown week
   sheets. Authenticates with your account credentials, caches a session token to a local
   file (.token.json), and makes outbound HTTPS requests to the Speediance cloud API.
+  Ships as a single static binary — no Python or other runtime required.
 metadata:
   openclaw:
     emoji: 🏋️
@@ -24,8 +25,7 @@ metadata:
         - "library.json — exercise catalog dump (library command)"
         - "Markdown week sheets (sync command only, opt-in)"
     requires:
-      bins:
-        - python3
+      bins: []
       env:
         - SPEEDIANCE_EMAIL
         - SPEEDIANCE_PASSWORD
@@ -58,22 +58,23 @@ no app navigation mid-session.
 
 ## Setup (one time)
 
-Install the CLI:
+`speediance-cli` is a single static binary — **no Python or other runtime needed**.
+
+Install it one of two ways:
 
 ```bash
-pip install git+https://github.com/stozo04/speediance-cli
-speediance-cli login   # authenticates and caches a token
+# A) Download a release binary for your OS/arch, extract, put it on your PATH:
+#    https://github.com/stozo04/speediance-cli/releases
+
+# B) Or build/install with Go (1.24+):
+go install github.com/stozo04/speediance-cli/cmd/speediance-cli@latest
 ```
 
-Or clone and run as a module (no install needed):
+Then authenticate:
 
 ```bash
-git clone https://github.com/stozo04/speediance-cli && cd speediance-cli
-pip install -r requirements.txt
-python -m speediance login
+speediance-cli login   # authenticates and caches a token in .token.json
 ```
-
-Once installed, `speediance-cli` and `python -m speediance` are interchangeable.
 
 ## Credentials
 
@@ -218,14 +219,18 @@ This is entirely opt-in — ignore it if you don't use that convention. Core com
 | `library [--search X] [--out FILE]` | Dump or search exercise catalog | ✓ |
 | `push <plan.json> [--dry-run]` | Create a training program on the account | ✓ |
 | `sync [--date DATE] [--weeks-dir DIR]` | (Optional) Write session into Markdown sheet | — |
+| `config show\|set\|path` | Manage `config.json` | ✓ (`show`) |
+| `version` | Build metadata (also `--version`) | ✓ |
+| `completion <shell>` | Shell completion (bash/zsh/fish/powershell) | — |
 
 ## Conventions
 
 - **stdout is parseable** with `--json`; all human-readable hints go to **stderr**.
+- **Exit codes**: `0` success, `2` authentication failure, non-zero for other errors.
 - **Secrets**: `config.json`, `.token.json`, `.env` are gitignored — never commit them.
 - **Token caching**: after the first login, the token is cached in `.token.json` and
   refreshed automatically on expiry.
 - **Dry-run first**: always use `--dry-run` before `push` when authoring new programs to
   confirm exercise IDs resolved correctly.
-- If an endpoint breaks after a Speediance app update, `speediance/client.py` is where
-  all API calls live.
+- If an endpoint breaks after a Speediance app update, all API calls live in
+  `internal/api` — that's the single place to patch.

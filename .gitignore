@@ -1,7 +1,22 @@
+# Secrets & local state (GOAL.md §5, §7) — never commit credentials or tokens.
 config.json
 .token.json
 .env
-__pycache__/
-*.pyc
-.venv/
-plans/
+
+# User plan files (examples live under plans/ but are gitignored per spec).
+/plans/
+
+# Build output.
+/dist/
+/speediance-cli
+/speediance-cli.exe
+*.exe
+
+# Go test/coverage artifacts.
+*.out
+coverage.txt
+
+# Editor/OS noise.
+.DS_Store
+.idea/
+.vscode/

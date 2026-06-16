@@ -1,0 +1,42 @@
+{
+  "name": "Example - Push",
+  "actionLibraryList": [
+    {
+      "groupId": 304,
+      "actionLibraryId": 3040,
+      "templatePresetId": -1,
+      "setsAndReps": "15,15,12",
+      "breakTime": "75,75,75",
+      "breakTime2": "75,75,75",
+      "sportMode": "1,1,1",
+      "leftRight": "0,0,0",
+      "selectCompletionMethod": "1,1,1",
+      "completionMethod": "1,1,1",
+      "countType": "1,1,1",
+      "weights": "39.6,39.6,44.0",
+      "counterweight2": "",
+      "level": "0,0,0",
+      "capacity": 1716.0
+    },
+    {
+      "groupId": 465,
+      "actionLibraryId": 4650,
+      "templatePresetId": -1,
+      "setsAndReps": "18,18",
+      "breakTime": "60,60",
+      "breakTime2": "60,60",
+      "sportMode": "1,1",
+      "leftRight": "1,2",
+      "selectCompletionMethod": "1,1",
+      "completionMethod": "1,1",
+      "countType": "1,1",
+      "weights": "15.4,15.4",
+      "counterweight2": "",
+      "level": "0,0",
+      "capacity": 554.4000000000001
+    }
+  ],
+  "totalCapacity": 2270.4,
+  "deviceType": 1,
+  "bgColor": 0
+}

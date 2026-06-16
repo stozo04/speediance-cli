@@ -9,10 +9,14 @@ on:
 
 jobs:
   publish:
-    uses: openclaw/clawhub/.github/workflows/skill-publish.yml@main
-    with:
-      owner: stozo04
-      skill_path: "."
-      dry_run: false
-    secrets:
-      clawhub_token: ${{ secrets.CLAWHUB_TOKEN }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install clawhub CLI
+        run: npm install -g clawhub
+
+      - name: Publish skill
+        env:
+          CLAWHUB_TOKEN: ${{ secrets.CLAWHUB_TOKEN }}
+        run: clawhub skill publish . --owner stozo04 --slug speediance --name "Speediance Gym Monster"

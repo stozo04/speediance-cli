@@ -1,0 +1,12 @@
+# Normalize all text to LF in the repository and on checkout, so the codebase
+# is line-ending-stable across platforms (Windows checkouts included).
+* text=auto eol=lf
+
+# Golden payload fixtures are asserted byte-for-byte against the tool's output
+# (internal/template/template_test.go). Treat them as binary so git never
+# rewrites their line endings on any platform — that would break the parity test.
+testdata/golden/** -text
+
+# Go and shell scripts must stay LF.
+*.go text eol=lf
+*.sh text eol=lf

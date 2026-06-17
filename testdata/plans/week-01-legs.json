@@ -1,0 +1,69 @@
+{
+  "name": "Week 1 - Legs (Coach)",
+  "_comment": "Quads/hams/glutes/calves. Deliberately spine-safe: pull-through, belt squat, and belt hip thrust load the hips with ZERO spinal compression (good for L4/L5). Conservative first-time weights in KG - adjust on the machine, leave 2-3 reps in reserve, exhale on effort.",
+  "exercises": [
+    {
+      "id": 2242,
+      "title": "Handle Goblet Squat",
+      "sets": [
+        {"reps": 15, "weight": 14, "mode": 1, "rest": 75},
+        {"reps": 14, "weight": 14, "mode": 1, "rest": 75},
+        {"reps": 12, "weight": 14, "mode": 1, "rest": 75}
+      ]
+    },
+    {
+      "id": 372783897509889,
+      "title": "Dual-Handle Bulgarian Split Squat",
+      "sets": [
+        {"reps": 10, "weight": 8, "mode": 1, "rest": 75},
+        {"reps": 10, "weight": 8, "mode": 1, "rest": 75},
+        {"reps": 10, "weight": 8, "mode": 1, "rest": 75}
+      ]
+    },
+    {
+      "id": 550,
+      "title": "Standing Tricep Rope Pull Through (back-safe hip hinge)",
+      "sets": [
+        {"reps": 15, "weight": 16, "mode": 1, "rest": 75},
+        {"reps": 15, "weight": 16, "mode": 1, "rest": 75},
+        {"reps": 15, "weight": 16, "mode": 1, "rest": 75}
+      ]
+    },
+    {
+      "id": 2294,
+      "title": "Belt Squat (zero spinal load)",
+      "sets": [
+        {"reps": 12, "weight": 20, "mode": 1, "rest": 75},
+        {"reps": 12, "weight": 20, "mode": 1, "rest": 75},
+        {"reps": 12, "weight": 20, "mode": 1, "rest": 75}
+      ]
+    },
+    {
+      "id": 438000322740225,
+      "title": "Floor Leg Curl",
+      "sets": [
+        {"reps": 14, "weight": 12, "mode": 1, "rest": 60},
+        {"reps": 14, "weight": 12, "mode": 1, "rest": 60},
+        {"reps": 14, "weight": 12, "mode": 1, "rest": 60}
+      ]
+    },
+    {
+      "id": 2241,
+      "title": "Belt Hip Thrust (no spinal load)",
+      "sets": [
+        {"reps": 14, "weight": 20, "mode": 1, "rest": 60},
+        {"reps": 14, "weight": 20, "mode": 1, "rest": 60},
+        {"reps": 14, "weight": 20, "mode": 1, "rest": 60}
+      ]
+    },
+    {
+      "id": 471,
+      "title": "Dual-Handle Calf Raise",
+      "sets": [
+        {"reps": 18, "weight": 20, "mode": 1, "rest": 60},
+        {"reps": 18, "weight": 20, "mode": 1, "rest": 60},
+        {"reps": 18, "weight": 20, "mode": 1, "rest": 60}
+      ]
+    }
+  ]
+}

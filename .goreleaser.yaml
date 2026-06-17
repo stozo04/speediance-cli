@@ -1,0 +1,67 @@
+# GoReleaser v2 configuration (GOAL.md §18).
+# Cross-compiles the CLI for linux/darwin/windows × amd64/arm64, stamps version
+# metadata via ldflags, and produces archives + checksums on a v* tag.
+version: 2
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: speediance-cli
+    main: ./cmd/speediance-cli
+    binary: speediance-cli
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    flags:
+      - -trimpath
+    mod_timestamp: "{{ .CommitTimestamp }}"
+    # -X targets package main vars (the only place -X reaches). main forwards
+    # these into internal/version (GOAL.md §14). Note the var is `versionString`
+    # (not `version`) because package main imports the version package.
+    ldflags:
+      - -s -w
+      - -X main.versionString={{ .Version }}
+      - -X main.commit={{ .Commit }}
+      - -X main.date={{ .Date }}
+
+archives:
+  - id: default
+    formats: [tar.gz]
+    name_template: >-
+      {{ .ProjectName }}_
+      {{- title .Os }}_
+      {{- if eq .Arch "amd64" }}x86_64
+      {{- else }}{{ .Arch }}{{ end }}
+    # Windows users expect zip.
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+    files:
+      - README.md
+      - AGENTS.md
+      - LICENSE
+
+checksum:
+  name_template: "checksums.txt"
+  algorithm: sha256
+
+changelog:
+  use: github
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^chore:"
+
+release:
+  draft: false
+  prerelease: auto

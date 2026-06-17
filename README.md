@@ -1,45 +1,52 @@
 # speediance-cli
 
+[![CI](https://github.com/stozo04/speediance-cli/actions/workflows/ci.yml/badge.svg)](https://github.com/stozo04/speediance-cli/actions/workflows/ci.yml)
+[![Go Reference](https://pkg.go.dev/badge/github.com/stozo04/speediance-cli.svg)](https://pkg.go.dev/github.com/stozo04/speediance-cli)
+[![Go Report Card](https://goreportcard.com/badge/github.com/stozo04/speediance-cli)](https://goreportcard.com/report/github.com/stozo04/speediance-cli)
+[![Release](https://img.shields.io/github/v/release/stozo04/speediance-cli?sort=semver)](https://github.com/stozo04/speediance-cli/releases)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
 A tiny, **agent-friendly** CLI for the Speediance (Gym Monster) cloud API. Read your
-completed workouts and **create programs that show up on the machine** - no photos to
+completed workouts and **create programs that show up on the machine** — no photos to
 reference mid-session. Every command speaks `--json`, and the tool owns no data layout:
 it returns structured data and creates programs; *you* (or your agent) decide what to do
 with it.
 
+A single, statically-compiled **Go** binary — no Python, no runtime, nothing to install
+alongside it. CLI-compatible with the original Python `speediance-cli` (same commands,
+same `--json`).
+
 > ⚠️ **Device support:** built and tested for the **Gym Monster (v1)** (`device_type = 1`).
-> A **Gym Monster 2** now exists and may use a different device type and exercise ids -
+> A **Gym Monster 2** now exists and may use a different device type and exercise ids —
 > it is currently **UNTESTED**. Set `SPEEDIANCE_DEVICE_TYPE` (or `device_type` in
 > config.json) if you want to try another device.
 
 > Point an agent at this repo. See **[AGENTS.md](AGENTS.md)** for the full self-serve guide
 > (setup, credentials, command surface, plan schema).
 
-> Unofficial - uses the Speediance cloud API reverse-engineered from the Android app.
+> Unofficial — uses the Speediance cloud API reverse-engineered from the Android app.
 > Personal use, your own account. Built on the MIT-licensed
 > `UnofficialSpeedianceWorkoutManager` (hbui3) and `speediance-influx` (gavinmcfall).
 
 ## Install
 
-**Via pip** (installs the `speediance-cli` command globally):
+**Pre-built binary** (recommended): download the archive for your OS/arch from the
+[Releases](https://github.com/stozo04/speediance-cli/releases) page, extract, and put
+`speediance-cli` on your `PATH`.
+
+**With Go** (1.24+):
 
 ```bash
-pip install git+https://github.com/stozo04/speediance-cli
+go install github.com/stozo04/speediance-cli/cmd/speediance-cli@latest
 speediance-cli login
 ```
 
-**Clone and run** (no install needed):
+`go install` drops the binary in `$(go env GOPATH)/bin` — make sure that's on your `PATH`.
 
-```bash
-git clone https://github.com/stozo04/speediance-cli && cd speediance-cli
-pip install -r requirements.txt
-python -m speediance login
-```
-
-`speediance-cli` (installed) and `python -m speediance` (cloned) are interchangeable.
-
-Credentials via env vars (`SPEEDIANCE_EMAIL`, `SPEEDIANCE_PASSWORD`, `SPEEDIANCE_REGION`)
-or a gitignored `config.json` — see `.env.example` and [AGENTS.md](AGENTS.md).
-SSO/Google accounts: set a password in the Speediance app once.
+Credentials via env vars (`SPEEDIANCE_EMAIL`, `SPEEDIANCE_PASSWORD`, `SPEEDIANCE_REGION`),
+a gitignored `config.json`, or a gitignored `.env` file in the working directory (auto-loaded;
+real exported env vars take precedence over it) — see `.env.example` / `config.example.json` and
+[AGENTS.md](AGENTS.md). SSO/Google accounts: set a password in the Speediance app once.
 
 ## Commands
 
@@ -58,6 +65,9 @@ checklist files. It needs a path and nothing else does:
 speediance-cli sync --weeks-dir /path/to/WEEKS
 ```
 
+Convenience commands: `config show|set|path` (manage `config.json` without hand-editing),
+`version` (build metadata; also `--version`), and `completion bash|zsh|fish|powershell`.
+
 ## Create a workout
 
 Author a plan (a human, a coach, or an LLM can write it), then `push` it:
@@ -75,35 +85,53 @@ Author a plan (a human, a coach, or an LLM can write it), then `push` it:
 `weight` is kilograms; `mode` 1=Standard; `rest` in seconds. Get `id`s from
 `speediance-cli library`. Full schema and field notes in [AGENTS.md](AGENTS.md).
 
+## Conventions
+
+- **stdout is parseable** with `--json`; all human hints, warnings, and logs go to **stderr**.
+  Never interleaved — pipe stdout straight into a parser.
+- **Exit codes:** `0` success, `2` auth failure, non-zero for other errors.
+- **Secrets:** `config.json`, `.token.json`, `.env`, and `plans/` are gitignored. Never
+  commit them. Prefer env vars for agents/headless use.
+
 ## ClawHub skill
 
 This tool is published as a public skill on [ClawHub](https://clawhub.ai/stozo04/speediance)
 so any OpenClaw or compatible agent can install it. The skill definition lives in
-[SKILL.md](SKILL.md). ClawHub is updated automatically on every merge to `main` via
+[SKILL.md](SKILL.md). ClawHub is updated automatically on every change to `SKILL.md` via
 GitHub Actions — no manual publish step needed.
 
 ## Notes
 
 - Built/tested for **Gym Monster 1** only (see device note above). GM2 is untested.
-- "Free Lift" (freestyle) sessions return totals only - no per-set detail. Programs do.
+- "Free Lift" (freestyle) sessions return totals only — no per-set detail. Programs do.
 - `library.json` is a committed **snapshot** of the exercise catalog for convenience;
   regenerate it anytime with `speediance-cli library`.
-- `config.json` / `.token.json` / `.env` / `plans/` are gitignored; never commit secrets
-  or personal workout plans.
 - `main` is PR-protected; changes land via pull request.
 
-## Files
+## Project layout
 
-- `speediance/client.py`    - API auth + endpoints
-- `speediance/templates.py` - exercise library + create programs from a plan
-- `speediance/sheet.py`     - (optional) write sessions into Markdown week sheets
-- `speediance/cli.py`       - `login` / `workouts` / `session` / `library` / `push` / `sync`
-- `SKILL.md`                - ClawHub marketplace skill definition
-- `pyproject.toml`          - pip packaging (`pip install git+...`)
-- `library.json`            - committed snapshot of the exercise catalog (Gym Monster 1)
-- `plans/`                  - personal workout plan JSONs (gitignored)
-- `tests/`                  - offline tests (no network)
+A thin `cmd/` entrypoint over a closed `internal/` tree (the `gh` pattern):
+
+- `cmd/speediance-cli/`  — entrypoint (`main`); maps errors to exit codes
+- `internal/api/`        — HTTP client: frozen headers, auth, token refresh, endpoints
+- `internal/config/`     — config + credential discovery (env / file / flags)
+- `internal/auth/`       — `.token.json` cache (0600)
+- `internal/template/`   — exercise library + build/create programs from a plan
+- `internal/workout/`    — workout/session models, record parsing, timestamp handling
+- `internal/sheet/`      — (optional) Markdown week-sheet writer + fuzzy matching
+- `internal/cli/`        — Cobra command wiring (one file per command)
+- `SKILL.md`             — ClawHub marketplace skill definition
+- `library.json`         — committed catalog snapshot (Gym Monster 1)
+- `plans/`               — personal workout plan JSONs (gitignored)
+
+## Development
+
+```bash
+go build ./...
+go test -race ./...
+golangci-lint run ./...
+```
 
 ## License
 
-MIT - see `LICENSE`.
+MIT — see `LICENSE`.

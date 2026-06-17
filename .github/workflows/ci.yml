@@ -1,0 +1,40 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build-test:
+    name: build & test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v6
+        with:
+          go-version: stable
+      - name: Build
+        run: go build ./...
+      - name: Test (race)
+        run: go test -race ./...
+
+  lint:
+    name: lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v6
+        with:
+          # Pin the linter's toolchain to the module's Go version so it matches
+          # the official golangci-lint release binary (built with go1.24). Using
+          # a newer toolchain (e.g. stable/go1.26) makes golangci-lint v2.1.6
+          # panic: "file requires newer Go version go1.26 (built with go1.24)".
+          go-version-file: go.mod
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v7
+        with:
+          version: v2.1.6

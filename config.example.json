@@ -2,6 +2,5 @@
   "email": "you@example.com",
   "password": "your-speediance-password",
   "region": "Global",
-  "unit": "lb",
   "device_type": 1
 }

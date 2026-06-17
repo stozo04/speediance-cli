@@ -1,5 +1,14 @@
 # GOAL — Rewrite `speediance-cli` in Go
 
+> **⚠️ Historical spec — partially superseded.** After the Go rewrite shipped, the `sync` command
+> and the `internal/sheet/` package (plus the `weeks_dir`/`unit` config keys and `SPEEDIANCE_WEEKS_DIR`
+> env var) were **removed** to make the tool a pure data collector: it now only reads and emits data
+> and pushes programs — it owns no downstream log layout. The Markdown `WEEKS/Week-XX.md` writing that
+> `sync` used to do moved into the consuming agent (`personal-workout-ai`). Sections below that
+> describe `sync`/`sheet`/`weeks_dir` document the *original* port and no longer reflect the shipped
+> command surface; treat them as history. See `README.md` / `AGENTS.md` / `SKILL.md` for the current
+> surface.
+
 > **One-line objective:** Reimplement the Python `speediance-cli` as a single, statically-compiled,
 > idiomatic Go CLI that is a **drop-in replacement** for the existing tool — same commands, same
 > credentials, same API behavior, same `--json` output — while modernizing the internals, error

@@ -104,7 +104,7 @@ func clearSpeedianceEnv(t *testing.T) {
 	t.Helper()
 	for _, k := range []string{
 		"SPEEDIANCE_EMAIL", "SPEEDIANCE_PASSWORD", "SPEEDIANCE_REGION",
-		"SPEEDIANCE_DEVICE_TYPE", "SPEEDIANCE_WEEKS_DIR", "SPEEDIANCE_CONFIG",
+		"SPEEDIANCE_DEVICE_TYPE", "SPEEDIANCE_CONFIG",
 		"SPEEDIANCE_TOKEN_CACHE",
 	} {
 		t.Setenv(k, "")

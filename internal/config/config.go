@@ -23,7 +23,6 @@ const (
 	EnvPassword   = "SPEEDIANCE_PASSWORD"
 	EnvRegion     = "SPEEDIANCE_REGION"
 	EnvDeviceType = "SPEEDIANCE_DEVICE_TYPE"
-	EnvWeeksDir   = "SPEEDIANCE_WEEKS_DIR"
 	EnvConfig     = "SPEEDIANCE_CONFIG"
 	EnvTokenCache = "SPEEDIANCE_TOKEN_CACHE"
 )
@@ -31,8 +30,7 @@ const (
 // Defaults (GOAL.md §7).
 const (
 	DefaultRegion     = "Global"
-	DefaultUnit       = "lb" // label only; weight math is always kg (see template pkg).
-	DefaultDeviceType = 1    // Gym Monster 1 — the only tested device.
+	DefaultDeviceType = 1 // Gym Monster 1 — the only tested device.
 
 	defaultConfigName = "config.json"
 	defaultTokenName  = ".token.json"
@@ -42,18 +40,12 @@ const (
 // password could not be resolved from any source.
 var ErrMissingCredentials = errors.New("missing credentials")
 
-// ErrMissingWeeksDir is returned by RequireWeeksDir when the sync command runs
-// without a weeks directory configured.
-var ErrMissingWeeksDir = errors.New("missing weeks directory")
-
 // Config is the fully resolved configuration handed to commands.
 type Config struct {
 	Email      string
 	Password   string
 	Region     string
-	Unit       string
 	DeviceType int
-	WeeksDir   string
 
 	// ConfigPath is where config.json was loaded from, or where it would be
 	// written if it does not yet exist.
@@ -71,9 +63,7 @@ type fileConfig struct {
 	Email      *string `json:"email"`
 	Password   *string `json:"password"`
 	Region     *string `json:"region"`
-	Unit       *string `json:"unit"`
 	DeviceType *int    `json:"device_type"`
-	WeeksDir   *string `json:"weeks_dir"`
 }
 
 // Options carries inputs the caller already knows from flags, so config
@@ -85,9 +75,8 @@ type Options struct {
 }
 
 // Load resolves configuration from defaults, config.json, and environment
-// variables. Flag overrides that live on individual commands (e.g. sync's
-// --weeks-dir) are applied by the caller afterward via the setters below, since
-// those flags are not known here.
+// variables. Per-command flag overrides, when present, are applied by the
+// caller afterward, since those flags are not known here.
 func Load(opts Options) (*Config, error) {
 	// Load a .env file from the working directory (if present) into the process
 	// environment so SPEEDIANCE_* values in .env participate as the env layer.
@@ -98,7 +87,6 @@ func Load(opts Options) (*Config, error) {
 
 	cfg := &Config{
 		Region:     DefaultRegion,
-		Unit:       DefaultUnit,
 		DeviceType: DefaultDeviceType,
 	}
 
@@ -185,14 +173,8 @@ func applyFile(cfg *Config, fc fileConfig) {
 	if fc.Region != nil {
 		cfg.Region = *fc.Region
 	}
-	if fc.Unit != nil {
-		cfg.Unit = *fc.Unit
-	}
 	if fc.DeviceType != nil {
 		cfg.DeviceType = *fc.DeviceType
-	}
-	if fc.WeeksDir != nil {
-		cfg.WeeksDir = *fc.WeeksDir
 	}
 }
 
@@ -206,9 +188,6 @@ func applyEnv(cfg *Config) {
 	if v, ok := os.LookupEnv(EnvRegion); ok {
 		cfg.Region = v
 	}
-	if v, ok := os.LookupEnv(EnvWeeksDir); ok {
-		cfg.WeeksDir = v
-	}
 	if v, ok := os.LookupEnv(EnvDeviceType); ok {
 		// Parse leniently: a malformed value falls back to the current value
 		// rather than failing the whole command, mirroring the Python tool's
@@ -219,27 +198,12 @@ func applyEnv(cfg *Config) {
 	}
 }
 
-// SetWeeksDir applies a flag override for the weeks directory. The caller should
-// only invoke it when the flag was actually changed (cmd.Flags().Changed),
-// preserving the flags > env > file precedence.
-func (c *Config) SetWeeksDir(dir string) { c.WeeksDir = dir }
-
 // RequireCredentials returns a friendly error (to be shown on stderr) when
 // email or password is missing after resolution. GOAL.md §7.
 func (c *Config) RequireCredentials() error {
 	if c.Email == "" || c.Password == "" {
 		return fmt.Errorf("%w: set %s and %s (or add \"email\"/\"password\" to %s)",
 			ErrMissingCredentials, EnvEmail, EnvPassword, c.ConfigPath)
-	}
-	return nil
-}
-
-// RequireWeeksDir returns a hard error when sync runs without a weeks directory.
-// GOAL.md §7: only sync needs it, so the message says so.
-func (c *Config) RequireWeeksDir() error {
-	if c.WeeksDir == "" {
-		return fmt.Errorf("%w: sync needs a weeks directory — pass --weeks-dir, set %s, "+
-			"or add \"weeks_dir\" to %s", ErrMissingWeeksDir, EnvWeeksDir, c.ConfigPath)
 	}
 	return nil
 }

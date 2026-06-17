@@ -248,7 +248,7 @@ func (w *Workout) AddDetailSets(detailData json.RawMessage) error {
 
 // GroupedExercises returns the workout's sets grouped by exercise name in
 // first-seen order — the equivalent of the Python Workout.exercises() dict. Used
-// by both session output and sheet writing.
+// to build the session output.
 func (w Workout) GroupedExercises() (order []string, byName map[string][]SetData) {
 	byName = map[string][]SetData{}
 	for _, s := range w.Sets {

@@ -5,7 +5,6 @@ go 1.24
 require (
 	github.com/hashicorp/go-retryablehttp v0.7.8
 	github.com/joho/godotenv v1.5.1
-	github.com/pmezard/go-difflib v1.0.0
 	github.com/spf13/cobra v1.10.2
 )
 

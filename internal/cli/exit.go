@@ -10,7 +10,7 @@ const (
 	ExitFailure    = 1
 	ExitAuth       = 2 // AuthError — preserved from the Python tool.
 	ExitUsage      = 64
-	ExitConfig     = 78 // missing credentials / missing --weeks-dir / bad config.
+	ExitConfig     = 78 // missing credentials / bad config.
 	ExitUnresolved = 65 // bad plan / unresolved exercise id.
 )
 

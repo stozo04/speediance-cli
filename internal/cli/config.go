@@ -16,9 +16,7 @@ type configView struct {
 	Email          string `json:"email"`
 	Password       string `json:"password"`
 	Region         string `json:"region"`
-	Unit           string `json:"unit"`
 	DeviceType     int    `json:"device_type"`
-	WeeksDir       string `json:"weeks_dir"`
 	ConfigPath     string `json:"config_path"`
 	TokenCachePath string `json:"token_cache_path"`
 }
@@ -26,7 +24,7 @@ type configView struct {
 // validConfigKeys are the keys `config set` accepts (the config.json schema).
 var validConfigKeys = map[string]bool{
 	"email": true, "password": true, "region": true,
-	"unit": true, "device_type": true, "weeks_dir": true,
+	"device_type": true,
 }
 
 // newConfigCmd implements `config [show|set|path]` (GOAL.md §9.7), a convenience
@@ -61,9 +59,7 @@ func newConfigShowCmd(app *App) *cobra.Command {
 					Email:          cfg.Email,
 					Password:       "", // never emit the secret in JSON.
 					Region:         cfg.Region,
-					Unit:           cfg.Unit,
 					DeviceType:     cfg.DeviceType,
-					WeeksDir:       cfg.WeeksDir,
 					ConfigPath:     cfg.ConfigPath,
 					TokenCachePath: cfg.TokenCachePath,
 				}
@@ -76,9 +72,7 @@ func newConfigShowCmd(app *App) *cobra.Command {
 			fprintf(out, "email:            %s\n", cfg.Email)
 			fprintf(out, "password:         %s\n", pw)
 			fprintf(out, "region:           %s\n", cfg.Region)
-			fprintf(out, "unit:             %s\n", cfg.Unit)
 			fprintf(out, "device_type:      %d\n", cfg.DeviceType)
-			fprintf(out, "weeks_dir:        %s\n", cfg.WeeksDir)
 			fprintf(out, "config_path:      %s\n", cfg.ConfigPath)
 			fprintf(out, "token_cache_path: %s\n", cfg.TokenCachePath)
 			return nil
@@ -96,7 +90,7 @@ func newConfigSetCmd(app *App) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			key, value := args[0], args[1]
 			if !validConfigKeys[key] {
-				return withCode(ExitUsage, fmt.Errorf("unknown config key %q (valid: email, password, region, unit, device_type, weeks_dir)", key))
+				return withCode(ExitUsage, fmt.Errorf("unknown config key %q (valid: email, password, region, device_type)", key))
 			}
 			cfg, err := app.resolveConfig()
 			if err != nil {

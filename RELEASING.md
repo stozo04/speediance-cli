@@ -39,7 +39,7 @@ Format is `vMAJOR.MINOR.PATCH` (e.g. `v1.2.3`). Bump the part that matches the c
 
 | Bump | When | Example |
 |------|------|---------|
-| **PATCH** `v1.0.0 → v1.0.1` | Bug fixes, dependency bumps. Nothing about *how you use it* changes. | Fixed a sync crash; merged Dependabot PRs |
+| **PATCH** `v1.0.0 → v1.0.1` | Bug fixes, dependency bumps. Nothing about *how you use it* changes. | Fixed a token-refresh crash; merged Dependabot PRs |
 | **MINOR** `v1.0.0 → v1.1.0` | New feature/command, **backward-compatible** (old usage still works). | Added a `speediance-cli export` command |
 | **MAJOR** `v1.0.0 → v2.0.0` | **Breaking change** — existing usage would break. | Renamed/removed a command, changed `--json` output shape, changed config format |
 

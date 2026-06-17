@@ -58,12 +58,9 @@ speediance-cli push plan.json --dry-run      # build a program (preview)
 speediance-cli push plan.json                # create it on your account
 ```
 
-`sync` is an **optional** extra that writes a session into Markdown `WEEKS/Week-XX.md`
-checklist files. It needs a path and nothing else does:
-
-```bash
-speediance-cli sync --weeks-dir /path/to/WEEKS
-```
+The reader commands emit JSON and own no data layout — pipe `workouts`/`session --json`
+into whatever stores or derives from it (a sheet, a database, an agent). Storing is the
+consumer's job, not the CLI's.
 
 Convenience commands: `config show|set|path` (manage `config.json` without hand-editing),
 `version` (build metadata; also `--version`), and `completion bash|zsh|fish|powershell`.
@@ -118,7 +115,6 @@ A thin `cmd/` entrypoint over a closed `internal/` tree (the `gh` pattern):
 - `internal/auth/`       — `.token.json` cache (0600)
 - `internal/template/`   — exercise library + build/create programs from a plan
 - `internal/workout/`    — workout/session models, record parsing, timestamp handling
-- `internal/sheet/`      — (optional) Markdown week-sheet writer + fuzzy matching
 - `internal/cli/`        — Cobra command wiring (one file per command)
 - `SKILL.md`             — ClawHub marketplace skill definition
 - `library.json`         — committed catalog snapshot (Gym Monster 1)

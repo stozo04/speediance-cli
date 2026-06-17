@@ -24,7 +24,7 @@ func TestDefaults(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cfg.Region != "Global" || cfg.Unit != "lb" || cfg.DeviceType != 1 {
+	if cfg.Region != "Global" || cfg.DeviceType != 1 {
 		t.Errorf("defaults wrong: %+v", cfg)
 	}
 	if cfg.TokenCachePath != ".token.json" {
@@ -71,25 +71,6 @@ func TestEnvOverridesFile(t *testing.T) {
 	}
 }
 
-func TestFlagOverridesEnvForWeeksDir(t *testing.T) {
-	dir := t.TempDir()
-	t.Chdir(dir)
-	clearEnv(t)
-	t.Setenv(EnvWeeksDir, "/from/env")
-
-	cfg, err := Load(Options{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if cfg.WeeksDir != "/from/env" {
-		t.Fatalf("env weeks_dir = %q", cfg.WeeksDir)
-	}
-	cfg.SetWeeksDir("/from/flag") // simulate a --weeks-dir override.
-	if cfg.WeeksDir != "/from/flag" {
-		t.Errorf("flag override failed: %q", cfg.WeeksDir)
-	}
-}
-
 func TestExplicitConfigPathWins(t *testing.T) {
 	dir := t.TempDir()
 	t.Chdir(dir)
@@ -123,17 +104,6 @@ func TestRequireCredentials(t *testing.T) {
 	cfg.Email, cfg.Password = "a", "b"
 	if err := cfg.RequireCredentials(); err != nil {
 		t.Errorf("unexpected error with creds set: %v", err)
-	}
-}
-
-func TestRequireWeeksDir(t *testing.T) {
-	cfg := &Config{}
-	if err := cfg.RequireWeeksDir(); err == nil {
-		t.Error("expected missing-weeks-dir error")
-	}
-	cfg.WeeksDir = "/x"
-	if err := cfg.RequireWeeksDir(); err != nil {
-		t.Errorf("unexpected error: %v", err)
 	}
 }
 
@@ -185,7 +155,7 @@ func clearEnv(t *testing.T) {
 	t.Helper()
 	for _, k := range []string{
 		EnvEmail, EnvPassword, EnvRegion, EnvDeviceType,
-		EnvWeeksDir, EnvConfig, EnvTokenCache,
+		EnvConfig, EnvTokenCache,
 	} {
 		t.Setenv(k, "")
 		_ = os.Unsetenv(k)

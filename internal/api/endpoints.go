@@ -44,10 +44,10 @@ func (c *Client) FetchDetail(ctx context.Context, trainingID int64) (*workout.Wo
 }
 
 // PopulateDetail adds the completion rate and per-set detail to an existing
-// workout (used by `sync`, which already has the summary fields). It makes two
-// GETs: cttTrainingInfo for the completion rate, then cttTrainingInfoDetail for
-// the per-set list. Freestyle "Free Lift" sessions return no detail, leaving
-// Sets empty. Mirrors the Python client's fetch_detail, which mutates in place.
+// workout. It makes two GETs: cttTrainingInfo for the completion rate, then
+// cttTrainingInfoDetail for the per-set list. Freestyle "Free Lift" sessions
+// return no detail, leaving Sets empty. Mirrors the Python client's
+// fetch_detail, which mutates in place.
 func (c *Client) PopulateDetail(ctx context.Context, w *workout.Workout) error {
 	id := strconv.FormatInt(w.TrainingID, 10)
 

@@ -2,11 +2,11 @@
 name: speediance
 description: >
   Read completed workouts (summaries and full per-set detail), browse and export the
-  exercise catalog, push custom training programs to your Speediance (Gym Monster) smart
-  cable machine via its cloud API, and optionally sync sessions into local Markdown week
-  sheets. Authenticates with your account credentials, caches a session token to a local
-  file (.token.json), and makes outbound HTTPS requests to the Speediance cloud API.
-  Ships as a single static binary — no Python or other runtime required.
+  exercise catalog, and push custom training programs to your Speediance (Gym Monster)
+  smart cable machine via its cloud API. Authenticates with your account credentials,
+  caches a session token to a local file (.token.json), and makes outbound HTTPS requests
+  to the Speediance cloud API. Reads and emits structured data — the caller decides where
+  to store it. Ships as a single static binary — no Python or other runtime required.
 metadata:
   openclaw:
     emoji: 🏋️
@@ -19,11 +19,9 @@ metadata:
         - "config.json — optional credential/config file in the working directory"
         - ".token.json — cached session token (path overridable via SPEEDIANCE_TOKEN_CACHE)"
         - "plan JSON files passed to the push command"
-        - "Markdown week sheets (sync command only)"
       files.write:
         - ".token.json — session token written after login and refreshed automatically"
         - "library.json — exercise catalog dump (library command)"
-        - "Markdown week sheets (sync command only, opt-in)"
     requires:
       bins: []
       env:
@@ -199,18 +197,12 @@ speediance-cli push plan.json             # create it on the account
 | `mode` | int | 1=Standard, 2=Eccentric, 3=Isokinetic, 4=Constant, 5=Spotter |
 | `rest` | int | Seconds between sets |
 
-### Optional: Markdown week-sheet sync
+### Storing what you read
 
-If you keep workout logs as `WEEKS/Week-XX.md` Markdown checklists, `sync` writes a
-completed session into the matching file automatically:
-
-```bash
-speediance-cli sync --weeks-dir /path/to/WEEKS --date today
-speediance-cli sync --weeks-dir /path/to/WEEKS --date 2025-06-10
-```
-
-This is entirely opt-in — ignore it if you don't use that convention. Core commands
-(`login`, `workouts`, `session`, `library`, `push`) never need a sheets folder.
+The CLI owns no log format. To keep a record of a session, pull it with `workouts --json`
+and `session <id> --json`, then write it wherever you keep data (a Markdown sheet, a
+database, a notebook). The tool reads and emits structured data; the caller decides the
+layout.
 
 ## Full command reference
 
@@ -221,7 +213,6 @@ This is entirely opt-in — ignore it if you don't use that convention. Core com
 | `session <training_id>` | Full per-set detail for one session | ✓ |
 | `library [--search X] [--out FILE]` | Dump or search exercise catalog | ✓ |
 | `push <plan.json> [--dry-run]` | Create a training program on the account | ✓ |
-| `sync [--date DATE] [--weeks-dir DIR]` | (Optional) Write session into Markdown sheet | — |
 | `config show\|set\|path` | Manage `config.json` | ✓ (`show`) |
 | `version` | Build metadata (also `--version`) | ✓ |
 | `completion <shell>` | Shell completion (bash/zsh/fish/powershell) | — |

@@ -103,16 +103,13 @@ speediance-cli push plan.json             # create it on the account
 
 Always `--dry-run` first when authoring new programs to confirm exercise ids resolved.
 
-## 5. Optional: Markdown sheet sync
+## 5. Storing what you read (it's the caller's job)
 
-`sync` is one specific integration (writing a session into `WEEKS/Week-XX.md`
-checklist files). It is **opt-in** and requires a path — core commands never do:
-
-```bash
-speediance-cli sync --weeks-dir /path/to/WEEKS --date today
-```
-
-If you don't use that sheet convention, ignore `sync` and consume `session --json`.
+The CLI does not own a log format. To keep a record of a session, **pull** it with
+`workouts --days N --json` and `session <training_id> --json`, then write it wherever you
+keep data (a Markdown sheet, a database, a notebook). The tool reads and emits; the caller
+decides the layout. Note that freestyle **"Free Lift"** sessions return totals only — no
+per-set detail to store.
 
 ## Conventions
 
@@ -134,7 +131,6 @@ If you don't use that sheet convention, ignore `sync` and consume `session --jso
 | `session <id>` | per-set detail for one session | yes |
 | `library` | dump exercise catalog to `library.json` | yes |
 | `push <plan.json>` | create a program (`--dry-run` to preview) | yes |
-| `sync` | (optional) write a session into a Markdown sheet | — |
 | `config show\|set\|path` | manage `config.json` | yes (`show`) |
 | `version` | build metadata (also `--version`) | yes |
 | `completion <shell>` | shell completion script | — |

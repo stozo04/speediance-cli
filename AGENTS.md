@@ -32,7 +32,9 @@ built-in defaults**.
 
 1. **Environment variables** (preferred for agents): `SPEEDIANCE_EMAIL`,
    `SPEEDIANCE_PASSWORD`, optional `SPEEDIANCE_REGION` (`Global` default, or `EU`) and
-   `SPEEDIANCE_DEVICE_TYPE` (`1` = Gym Monster v1, the only tested device).
+   `SPEEDIANCE_DEVICE_TYPE` (`1` = Gym Monster v1, the only tested device). A gitignored
+   **`.env`** file in the working directory is auto-loaded into the environment (real exported
+   variables take precedence over it), so these can live in `.env` instead of being exported.
 2. **`config.json`** in the working directory — copy `config.example.json` to
    `config.json` and fill it in. This file is gitignored; never commit it. (You can also
    point `--config PATH` or `SPEEDIANCE_CONFIG` at an explicit file.)

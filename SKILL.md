@@ -97,6 +97,9 @@ Alternatively, write a `config.json` in the working directory (gitignored by the
 }
 ```
 
+You can also put these variables in a gitignored **`.env`** file in the working directory — it's
+loaded automatically (exported environment variables still take precedence over it).
+
 ## Commands
 
 ### Read workouts

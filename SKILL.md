@@ -95,8 +95,10 @@ Alternatively, write a `config.json` in the working directory (gitignored by the
 }
 ```
 
-You can also put these variables in a gitignored **`.env`** file in the working directory — it's
-loaded automatically (exported environment variables still take precedence over it).
+You can also put these variables in a gitignored **`.env`** file in the working directory — the
+`SPEEDIANCE_*` keys are read from it automatically (exported environment variables still take
+precedence). Only those keys are read; the file is parsed into a map and any other keys are
+ignored, so a stray `.env` can never inject unrelated variables into the process environment.
 
 ## Commands
 

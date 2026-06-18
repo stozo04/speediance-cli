@@ -78,12 +78,19 @@ type Options struct {
 // variables. Per-command flag overrides, when present, are applied by the
 // caller afterward, since those flags are not known here.
 func Load(opts Options) (*Config, error) {
-	// Load a .env file from the working directory (if present) into the process
-	// environment so SPEEDIANCE_* values in .env participate as the env layer.
-	// godotenv.Load does NOT override already-set variables, so a real exported
-	// env var still wins — precedence stays flags > env (.env) > config file >
-	// defaults. A missing .env is a silent no-op.
-	_ = godotenv.Load()
+	// Parse a .env file from the working directory WITHOUT mutating the process
+	// environment, then consult only our own SPEEDIANCE_* keys (see envLayer).
+	//
+	// This is deliberate. godotenv.Load — the obvious alternative — exports EVERY
+	// key in .env into the live process environment, including unrelated and
+	// security-sensitive ones (PATH, LD_PRELOAD, HTTP_PROXY, …). Because a CLI's
+	// working directory is attacker-influenceable (an agent may run it anywhere),
+	// a stray or hostile .env could escalate into the tool's runtime. godotenv.Read
+	// returns the file as a map and changes no global state, so unknown keys are
+	// never applied. The documented feature is preserved: SPEEDIANCE_* values in
+	// .env still act as the env layer. A missing/unreadable .env yields a nil map
+	// and is a silent no-op.
+	dotenv, _ := godotenv.Read()
 
 	cfg := &Config{
 		Region:     DefaultRegion,
@@ -91,7 +98,7 @@ func Load(opts Options) (*Config, error) {
 	}
 
 	// 1. Locate and read config.json (if any).
-	path, err := discoverConfigPath(opts.ConfigPath)
+	path, err := discoverConfigPath(opts.ConfigPath, dotenv)
 	if err != nil {
 		return nil, err
 	}
@@ -104,11 +111,13 @@ func Load(opts Options) (*Config, error) {
 	cfg.ConfigExists = exists
 	applyFile(cfg, fc)
 
-	// 2. Environment overrides (LookupEnv distinguishes set-empty from unset).
-	applyEnv(cfg)
+	// 2. Environment overrides. A real exported var beats a .env entry, which in
+	// turn beats config.json — precedence stays flags > env > .env > file >
+	// defaults. (envLayer distinguishes set-empty from unset, like LookupEnv.)
+	applyEnv(cfg, dotenv)
 
 	// 3. Token cache location.
-	if v, ok := os.LookupEnv(EnvTokenCache); ok {
+	if v, ok := envLayer(dotenv, EnvTokenCache); ok {
 		cfg.TokenCachePath = v
 	} else {
 		cfg.TokenCachePath = defaultTokenName // .token.json in CWD (Python parity).
@@ -123,11 +132,11 @@ func Load(opts Options) (*Config, error) {
 //     behavior and the skill docs).
 //  3. optional fallback: <UserConfigDir>/speediance/config.json, but only if it
 //     actually exists — never required.
-func discoverConfigPath(flagPath string) (string, error) {
+func discoverConfigPath(flagPath string, dotenv map[string]string) (string, error) {
 	if flagPath != "" {
 		return flagPath, nil
 	}
-	if v, ok := os.LookupEnv(EnvConfig); ok && v != "" {
+	if v, ok := envLayer(dotenv, EnvConfig); ok && v != "" {
 		return v, nil
 	}
 
@@ -178,17 +187,17 @@ func applyFile(cfg *Config, fc fileConfig) {
 	}
 }
 
-func applyEnv(cfg *Config) {
-	if v, ok := os.LookupEnv(EnvEmail); ok {
+func applyEnv(cfg *Config, dotenv map[string]string) {
+	if v, ok := envLayer(dotenv, EnvEmail); ok {
 		cfg.Email = v
 	}
-	if v, ok := os.LookupEnv(EnvPassword); ok {
+	if v, ok := envLayer(dotenv, EnvPassword); ok {
 		cfg.Password = v
 	}
-	if v, ok := os.LookupEnv(EnvRegion); ok {
+	if v, ok := envLayer(dotenv, EnvRegion); ok {
 		cfg.Region = v
 	}
-	if v, ok := os.LookupEnv(EnvDeviceType); ok {
+	if v, ok := envLayer(dotenv, EnvDeviceType); ok {
 		// Parse leniently: a malformed value falls back to the current value
 		// rather than failing the whole command, mirroring the Python tool's
 		// permissiveness.
@@ -196,6 +205,22 @@ func applyEnv(cfg *Config) {
 			cfg.DeviceType = n
 		}
 	}
+}
+
+// envLayer resolves one SPEEDIANCE_* setting from the environment layer: a real
+// exported variable wins; otherwise the value parsed from .env (if any) is used.
+// Only the explicit key passed in is ever consulted, so foreign keys present in
+// a .env file (PATH, LD_PRELOAD, …) are never read and can never reach the
+// process — this is the privilege-escalation guard. Like os.LookupEnv, a key
+// that is set-but-empty returns ("", true) and still overrides lower layers.
+func envLayer(dotenv map[string]string, key string) (string, bool) {
+	if v, ok := os.LookupEnv(key); ok {
+		return v, true
+	}
+	if v, ok := dotenv[key]; ok {
+		return v, true
+	}
+	return "", false
 }
 
 // RequireCredentials returns a friendly error (to be shown on stderr) when

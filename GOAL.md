@@ -332,17 +332,29 @@ matches Python's `json.dumps(indent=2)`.
 - stdout (human): `Found N session(s)…` then `- <date>  <title>  -  <min> min, <kcal> kcal  (id <id>)`;
   empty → `No completed workouts in the last N day(s).`
 
-### 9.3 `session <training_id> [--json]`
+### 9.3 `session <training_id> [--json] [--telemetry]`
 - `fetch_detail`: GET `/app/trainingInfo/cttTrainingInfo/<id>` → `completionRate`; GET
   `/app/trainingInfo/cttTrainingInfoDetail/<id>` → list; per exercise: `actionLibraryName`,
-  `maxWeight`, and `finishedReps[]` items `{finishedCount, targetCount, weight, capacity,
-  maxHeartRate, leftRight}`. Group sets by exercise name, first-seen order.
-- **stdout `--json`**:
+  `maxWeight`, the form scores, and `finishedReps[]` items `{finishedCount, targetCount, weight,
+  capacity, maxHeartRate, leftRight, trainingInfoDetail}`. Group sets by exercise name, first-seen
+  order.
+- **Per-set `weight` (issue #23):** report the load **actually performed**, never the *planned*
+  exercise `maxWeight`. For a completed program session the API leaves the per-rep `weight` null;
+  derive the scalar from the real per-rep telemetry (`trainingInfoDetail.weights[]` mean — already
+  per-attachment, so no handle-count branch — falling back to `capacity/reps`) and tag it with
+  `weight_source` (`"actual"` | `"derived_avg"` | `"unavailable"`). `capacity` is always emitted.
+  The old `rep.get("weight", maxWeight)` fallback fabricated flat per-set weights and is removed.
+- **stdout `--json`** (lean view):
   ```json
   {"training_id": 0, "completion_rate": 0.0,
    "exercises": [{"name": "", "sets": [
-     {"set": 1, "reps": 0, "target_reps": 0, "weight": 0.0, "max_hr": 0.0, "left_right": 0}]}]}
+     {"set": 1, "reps": 0, "target_reps": 0, "weight": 0.0, "weight_source": "",
+      "capacity": 0.0, "max_hr": 0.0, "left_right": 0}]}]}
   ```
+- **`--telemetry`** adds, per exercise, `scores`/`max_weight`/`max_weight_count`, and per set
+  `weight_avg_per_handle` + `reps_detail[]` (per-rep, per-side `weight`, watts, amplitude, rope
+  speed, finished/break times, timestamp). Single-attachment moves populate only the left-side
+  arrays → right-side fields omitted. These fields are omitted entirely without the flag.
 - **Edge:** "Free Lift" / freestyle sessions return no per-set detail → `exercises: []`; human mode
   prints the "no per-set detail (freestyle…)" message.
 

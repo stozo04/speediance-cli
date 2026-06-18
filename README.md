@@ -52,7 +52,8 @@ real exported env vars take precedence over it) — see `.env.example` / `config
 
 ```bash
 speediance-cli workouts --days 7 --json      # recent sessions
-speediance-cli session <training_id> --json  # full per-set detail
+speediance-cli session <training_id> --json  # per-set detail (actual weight + capacity)
+speediance-cli session <id> --json --telemetry  # + per-rep power/ROM/tempo + form scores
 speediance-cli library --search "row"        # exercise catalog (ids/names/muscles)
 speediance-cli push plan.json --dry-run      # build a program (preview)
 speediance-cli push plan.json                # create it on your account

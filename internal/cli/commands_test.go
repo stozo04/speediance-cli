@@ -404,6 +404,125 @@ func TestSessionFreestyleEmptyExercises(t *testing.T) {
 	}
 }
 
+// sessionTelemetryServer serves a completed-program session whose per-rep weight
+// is null but whose nested trainingInfoDetail carries the real telemetry — the
+// issue #23 shape (a 15x5 -> 10x9 hammer-curl drop set).
+func sessionTelemetryServer(t *testing.T) *httptest.Server {
+	t.Helper()
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case strings.Contains(r.URL.Path, "cttTrainingInfoDetail"):
+			_, _ = w.Write([]byte(`{"code":0,"data":[
+				{"actionLibraryName":"Standing Dual-Handle Hammer Curl","maxWeight":15,
+				 "maxWeightCount":5,"score":16,"completionScore":5,"forceControlScore":4,
+				 "bilateralBalanceScore":4,"amplitudeStableScore":3,"actionRating":3,
+				 "finishedReps":[
+					{"finishedCount":14,"targetCount":14,"capacity":330,"leftRight":0,
+					 "trainingInfoDetail":{
+						"weights":[15,15,15,15,15,10,10,10,10,10,10,10,10,10],
+						"leftWatts":[41.65,51.84,49.19,44.87,41.33,35.67,28.9,27.35,25.21,35.9,29.44,28.5,32.58,27.5],
+						"rightWatts":[26.28,55.05,54.9,47.86,39.97,37.79,33.65,28.38,24.25,28.6,29.96,29.07,33.35,27.62],
+						"leftAmplitudes":[0.46,0.68,0.65,0.71,0.69,0.65,0.62,0.67,0.7,0.73,0.74,0.72,0.71,0.73]}}]}]}`))
+		case strings.Contains(r.URL.Path, "cttTrainingInfo"):
+			_, _ = w.Write([]byte(`{"code":0,"data":{"completionRate":0.95}}`))
+		default:
+			_, _ = w.Write([]byte(`{"code":0,"data":[]}`))
+		}
+	}))
+}
+
+// TestSessionTelemetryJSON is the CLI-level guard for issue #23: the default
+// view never reports the planned maxWeight and always emits capacity +
+// weight_source; --telemetry unlocks the per-rep arrays and form scores.
+func TestSessionTelemetryJSON(t *testing.T) {
+	srv := sessionTelemetryServer(t)
+	defer srv.Close()
+
+	type setT struct {
+		Weight             json.RawMessage `json:"weight"`
+		WeightSource       string          `json:"weight_source"`
+		Capacity           json.RawMessage `json:"capacity"`
+		WeightAvgPerHandle json.RawMessage `json:"weight_avg_per_handle"`
+		RepsDetail         []struct {
+			Rep    int             `json:"rep"`
+			Weight json.RawMessage `json:"weight"`
+		} `json:"reps_detail"`
+	}
+	type exT struct {
+		Scores         json.RawMessage `json:"scores"`
+		MaxWeight      json.RawMessage `json:"max_weight"`
+		MaxWeightCount json.RawMessage `json:"max_weight_count"`
+		Sets           []setT          `json:"sets"`
+	}
+	parse := func(out string) exT {
+		t.Helper()
+		var doc struct {
+			Exercises []exT `json:"exercises"`
+		}
+		if err := json.Unmarshal([]byte(out), &doc); err != nil {
+			t.Fatalf("bad json: %v\n%s", err, out)
+		}
+		if len(doc.Exercises) != 1 {
+			t.Fatalf("exercises = %d, want 1\n%s", len(doc.Exercises), out)
+		}
+		return doc.Exercises[0]
+	}
+
+	// Default (lean) view: real weight, marker, capacity — no telemetry fields.
+	out, _, err := runCLI(t, srv.URL, "session", "940759", "--json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	ex := parse(out)
+	s := ex.Sets[0]
+	if string(s.Weight) == "15" || string(s.Weight) == "15.0" {
+		t.Errorf("default weight = %s — regressed to planned maxWeight (issue #23)", s.Weight)
+	}
+	if string(s.Weight) != "11.8" || s.WeightSource != "derived_avg" {
+		t.Errorf("default set weight=%s source=%s, want 11.8/derived_avg", s.Weight, s.WeightSource)
+	}
+	if string(s.Capacity) != "330" {
+		t.Errorf("default capacity = %s, want 330", s.Capacity)
+	}
+	if s.WeightAvgPerHandle != nil || s.RepsDetail != nil {
+		t.Errorf("default view leaked telemetry fields: %+v", s)
+	}
+	if ex.Scores != nil || ex.MaxWeight != nil {
+		t.Errorf("default view leaked exercise telemetry: %+v", ex)
+	}
+
+	// --telemetry view: per-rep arrays + scores present.
+	tout, _, err := runCLI(t, srv.URL, "session", "940759", "--json", "--telemetry")
+	if err != nil {
+		t.Fatal(err)
+	}
+	tex := parse(tout)
+	if tex.Scores == nil || string(tex.MaxWeight) != "15" || string(tex.MaxWeightCount) != "5" {
+		t.Errorf("telemetry exercise meta wrong: scores=%s max=%s cnt=%s", tex.Scores, tex.MaxWeight, tex.MaxWeightCount)
+	}
+	ts := tex.Sets[0]
+	if string(ts.WeightAvgPerHandle) != "11.8" {
+		t.Errorf("weight_avg_per_handle = %s, want 11.8", ts.WeightAvgPerHandle)
+	}
+	if len(ts.RepsDetail) != 14 {
+		t.Fatalf("reps_detail len = %d, want 14\n%s", len(ts.RepsDetail), tout)
+	}
+	if string(ts.RepsDetail[0].Weight) != "15" || string(ts.RepsDetail[5].Weight) != "10" {
+		t.Errorf("reps_detail weights wrong: rep1=%s rep6=%s (want 15, 10 — the mid-set drop)",
+			ts.RepsDetail[0].Weight, ts.RepsDetail[5].Weight)
+	}
+
+	// Human --telemetry annotates the line with the form scores.
+	hout, _, err := runCLI(t, srv.URL, "session", "940759", "--telemetry")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(hout, "score 16") {
+		t.Errorf("human telemetry missing scores annotation:\n%s", hout)
+	}
+}
+
 func TestVersionJSON(t *testing.T) {
 	root := NewRootCmd()
 	var out bytes.Buffer

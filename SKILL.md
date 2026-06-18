@@ -112,8 +112,9 @@ ignored, so a stray `.env` can never inject unrelated variables into the process
 ### Read workouts
 
 ```bash
-speediance-cli workouts --days 7 --json      # recent sessions (summaries)
-speediance-cli session <training_id> --json  # full per-set detail for one session
+speediance-cli workouts --days 7 --json               # recent sessions (summaries)
+speediance-cli session <training_id> --json           # per-set detail for one session
+speediance-cli session <training_id> --json --telemetry  # + per-rep power/ROM/tempo + form scores
 ```
 
 Sample `workouts --json` output:
@@ -142,12 +143,48 @@ Sample `session <id> --json` output:
     {
       "name": "Seated Dual-Handle Lat Pulldown",
       "sets": [
-        {"set": 1, "reps": 12, "target_reps": 12, "weight": 20.0, "max_hr": 148, "left_right": 0}
+        {"set": 1, "reps": 12, "target_reps": 12, "weight": 20.0, "weight_source": "actual", "capacity": 480.0, "max_hr": 148, "left_right": 0}
       ]
     }
   ]
 }
 ```
+
+**`weight` is the load actually performed, not the planned weight.** For a
+completed *program* session the API reports weight per rep, which can drop
+mid-set (e.g. `15×5 → 10×9`). The `weight` scalar reflects that real load and
+`weight_source` says how it was obtained:
+
+| `weight_source` | Meaning |
+|---|---|
+| `"actual"` | The API gave a real per-rep weight; reported verbatim. |
+| `"derived_avg"` | Per-rep weight was null; `weight` is the mean of the real per-rep telemetry (per attachment) — never the planned max weight. |
+| `"unavailable"` | No load signal at all; `weight` is `0.0`. |
+
+`capacity` (total weight moved across the set) is always emitted. The full
+per-rep, per-side telemetry and per-exercise form scores are available with
+`--telemetry`:
+
+```json
+{
+  "name": "Standing Dual-Handle Hammer Curl",
+  "scores": {"total": 16, "completion": 5, "force_control": 4, "bilateral_balance": 4, "amplitude_stable": 3, "rating": 3},
+  "max_weight": 15.0, "max_weight_count": 5,
+  "sets": [
+    {
+      "set": 1, "reps": 14, "target_reps": 14, "weight": 11.8, "weight_source": "derived_avg",
+      "capacity": 330.0, "max_hr": 0.0, "left_right": 0, "weight_avg_per_handle": 11.8,
+      "reps_detail": [
+        {"rep": 1, "weight": 15, "left_watts": 41.65, "right_watts": 26.28, "left_amp": 0.46, "right_amp": 0.46},
+        {"rep": 6, "weight": 10, "left_watts": 35.67, "right_watts": 37.79, "left_amp": 0.65, "right_amp": 0.76}
+      ]
+    }
+  ]
+}
+```
+
+Single-attachment moves (e.g. a rope face pull) populate only the left-side
+arrays; the right-side `reps_detail` fields are omitted for those.
 
 > "Free Lift" (freestyle) sessions return totals only — no per-set detail.
 > Sessions started from a **program** return full set data.
@@ -219,7 +256,7 @@ layout.
 |---|---|---|
 | `login` | Authenticate and cache a session token | — |
 | `workouts [--days N]` | List recent completed sessions | ✓ |
-| `session <training_id>` | Full per-set detail for one session | ✓ |
+| `session <training_id> [--telemetry]` | Per-set detail for one session; `--telemetry` adds per-rep power/ROM/tempo + form scores | ✓ |
 | `library [--search X] [--out FILE]` | Dump or search exercise catalog | ✓ |
 | `push <plan.json> [--dry-run]` | Create a training program on the account | ✓ |
 | `config show\|set\|path` | Manage `config.json` | ✓ (`show`) |

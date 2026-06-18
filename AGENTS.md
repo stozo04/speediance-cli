@@ -61,9 +61,19 @@ You can inspect the resolved configuration any time with `speediance-cli config 
 # recent completed sessions (summaries)
 speediance-cli workouts --days 7 --json
 
-# full per-set detail for one session (reps, weight, HR per set)
+# per-set detail for one session (reps, actual weight, capacity, HR per set)
 speediance-cli session <training_id> --json
+
+# + real per-rep telemetry (power, ROM, tempo) and per-exercise form scores
+speediance-cli session <training_id> --json --telemetry
 ```
+
+`weight` is the load **actually performed**, not the planned weight. A
+`weight_source` field tags it: `"actual"` (API gave a per-rep weight),
+`"derived_avg"` (computed from the real per-rep telemetry when the API leaves it
+null — never the planned max weight), or `"unavailable"` (`0.0`). `capacity` is
+always emitted; `--telemetry` adds the per-rep `weights`/`watts`/amplitude arrays
+and form scores.
 
 Note: freestyle **"Free Lift"** sessions return only totals — no per-set detail.
 Sessions run from a **program** (see below) return everything.
@@ -139,7 +149,7 @@ per-set detail to store.
 |---|---|---|
 | `login` | authenticate, cache token | — |
 | `workouts --days N` | list recent sessions | yes |
-| `session <id>` | per-set detail for one session | yes |
+| `session <id> [--telemetry]` | per-set detail; `--telemetry` adds per-rep telemetry + form scores | yes |
 | `library` | dump exercise catalog to `library.json` | yes |
 | `push <plan.json>` | create a program (`--dry-run` to preview) | yes |
 | `config show\|set\|path` | manage `config.json` | yes (`show`) |

@@ -34,9 +34,11 @@ const (
 
 	defaultConfigName = "config.json"
 
-	// appUserSubdir is the per-user application directory (under os.UserConfigDir)
-	// where speediance-cli keeps state that must NOT live in the — frequently
-	// version-controlled — working directory.
+	// appUserSubdir is the per-user application directory name, shared by both
+	// per-user locations but placed under the purpose-appropriate base: the token
+	// cache under os.UserCacheDir (non-roaming), config under os.UserConfigDir.
+	// Either way it keeps state out of the — frequently version-controlled —
+	// working directory. (CLI_CONVENTIONS.md §1, §2.)
 	appUserSubdir = "speediance"
 	// userTokenName is the token cache filename inside the per-user app dir.
 	userTokenName = "token.json"
@@ -141,9 +143,10 @@ func Load(opts Options) (*Config, error) {
 
 	// 3. Token cache location. Precedence mirrors the global contract: an explicit
 	// SPEEDIANCE_TOKEN_CACHE (real env or .env) wins, then the token_cache_path
-	// config key, then the per-user default. The default deliberately lives
-	// OUTSIDE the working directory: a token cached in CWD is a live credential
-	// that a routine `git add -A` could commit and push (issue #17).
+	// config key, then the per-user default. The default lives in the non-roaming
+	// per-user cache dir, OUTSIDE the working directory: a token cached in CWD is a
+	// live credential a routine `git add -A` could commit (issue #17), and a token
+	// in the roaming config dir can sync across machines (CLI_CONVENTIONS.md §1).
 	if v, ok := envLayer(dotenv, EnvTokenCache); ok {
 		cfg.TokenCachePath = v
 	} else if fc.TokenCachePath != nil && *fc.TokenCachePath != "" {
@@ -157,13 +160,16 @@ func Load(opts Options) (*Config, error) {
 }
 
 // defaultTokenCachePath returns the per-user token cache location,
-// <os.UserConfigDir>/speediance/token.json. It resolves OUTSIDE the current
-// working directory on purpose so the cached credential can't be swept into a
-// commit (issue #17). If the per-user config dir can't be determined (a rare,
-// HOME-less environment), it falls back to the legacy working-directory path so
-// the tool still functions.
+// <os.UserCacheDir>/speediance/token.json. The cache base is deliberate: a token
+// is regenerable state, not config, and os.UserCacheDir is non-roaming
+// (Windows %LocalAppData%) — unlike os.UserConfigDir (%AppData%\Roaming), which
+// can sync a live credential across machines (CLI_CONVENTIONS.md §1). It also
+// resolves OUTSIDE the working directory so the credential can't be swept into a
+// commit (issue #17). If the cache base can't be determined (a rare, HOME-less
+// environment), it falls back to the legacy working-directory path so the tool
+// still functions.
 func defaultTokenCachePath() string {
-	if dir, err := os.UserConfigDir(); err == nil {
+	if dir, err := os.UserCacheDir(); err == nil {
 		return filepath.Join(dir, appUserSubdir, userTokenName)
 	}
 	return legacyTokenName
@@ -274,11 +280,18 @@ func envLayer(dotenv map[string]string, key string) (string, bool) {
 // RequireCredentials returns a friendly error (to be shown on stderr) when
 // email or password is missing after resolution. GOAL.md §7.
 func (c *Config) RequireCredentials() error {
-	if c.Email == "" || c.Password == "" {
-		return fmt.Errorf("%w: set %s and %s (or add \"email\"/\"password\" to %s)",
-			ErrMissingCredentials, EnvEmail, EnvPassword, c.ConfigPath)
+	if c.Email != "" && c.Password != "" {
+		return nil
 	}
-	return nil
+	// Name where we looked, in precedence order, so the caller can fix it without
+	// guessing — never a bare "missing credentials" (CLI_CONVENTIONS.md §5). No
+	// secret values are echoed.
+	return fmt.Errorf(
+		"%w: set %s and %s (exported env vars, or a .env in the working directory), "+
+			"or add \"email\"/\"password\" to config.json. config.json is resolved from "+
+			"--config / %s, then ./%s, then <user-config-dir>/%s/%s (resolved this run: %s)",
+		ErrMissingCredentials, EnvEmail, EnvPassword,
+		EnvConfig, defaultConfigName, appUserSubdir, defaultConfigName, c.ConfigPath)
 }
 
 // DeviceWarning returns a non-empty warning string when a non-GM1 device is

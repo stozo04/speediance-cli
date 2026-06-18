@@ -37,15 +37,19 @@ func TestDefaults(t *testing.T) {
 	}
 }
 
-// setUserConfigDir points os.UserConfigDir at dir on every platform so the
-// per-user token-cache default is deterministic in tests. os.UserConfigDir reads
-// %AppData% on Windows, $XDG_CONFIG_HOME (else $HOME/.config) on Linux/BSD, and
-// $HOME/Library/Application Support on macOS — setting all three covers each.
-func setUserConfigDir(t *testing.T, dir string) {
+// setUserBaseDirs points BOTH os.UserConfigDir and os.UserCacheDir at dir on
+// every platform, so the per-user defaults are deterministic in tests. The token
+// default uses the cache base (CLI_CONVENTIONS.md §1); config uses the config
+// base. UserConfigDir reads %AppData% / $XDG_CONFIG_HOME / $HOME/Library/Application Support;
+// UserCacheDir reads %LocalAppData% / $XDG_CACHE_HOME / $HOME/Library/Caches —
+// setting all of them (plus $HOME for macOS, which derives both) covers each.
+func setUserBaseDirs(t *testing.T, dir string) {
 	t.Helper()
-	t.Setenv("AppData", dir)         // Windows
-	t.Setenv("XDG_CONFIG_HOME", dir) // Linux/BSD
-	t.Setenv("HOME", dir)            // macOS (and Linux fallback)
+	t.Setenv("AppData", dir)         // Windows UserConfigDir
+	t.Setenv("LocalAppData", dir)    // Windows UserCacheDir
+	t.Setenv("XDG_CONFIG_HOME", dir) // Linux/BSD UserConfigDir
+	t.Setenv("XDG_CACHE_HOME", dir)  // Linux/BSD UserCacheDir
+	t.Setenv("HOME", dir)            // macOS derives both; Linux fallback
 }
 
 // TestTokenCacheDefaultNotInWorkingDir is the immutable regression guard for
@@ -56,7 +60,7 @@ func TestTokenCacheDefaultNotInWorkingDir(t *testing.T) {
 	cwd := t.TempDir()
 	t.Chdir(cwd)
 	clearEnv(t)
-	setUserConfigDir(t, t.TempDir()) // a per-user dir distinct from cwd.
+	setUserBaseDirs(t, t.TempDir()) // a per-user dir distinct from cwd.
 
 	cfg, err := Load(Options{})
 	if err != nil {
@@ -81,6 +85,45 @@ func TestTokenCacheDefaultNotInWorkingDir(t *testing.T) {
 	if rel, err := filepath.Rel(cwd, cfg.TokenCachePath); err == nil &&
 		rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
 		t.Fatalf("default token cache %q resolves inside the working directory %q — issue #17 leak", cfg.TokenCachePath, cwd)
+	}
+}
+
+// TestTokenCacheDefaultIsNotRoaming is the regression guard for CLI_CONVENTIONS.md
+// §1: the token default must resolve under the non-roaming cache base
+// (os.UserCacheDir → %LocalAppData% on Windows), NOT the config base
+// (os.UserConfigDir → %AppData%\Roaming), which can sync a live credential across
+// machines. Asserting the negative — token is NOT under the roaming config base —
+// fails loudly if anyone moves the default back to os.UserConfigDir.
+func TestTokenCacheDefaultIsNotRoaming(t *testing.T) {
+	cwd := t.TempDir()
+	t.Chdir(cwd)
+	clearEnv(t)
+	// Point the config base and the cache base at DISTINCT dirs so "under cache,
+	// not under config" is a meaningful, hermetic assertion on every platform.
+	configDir := t.TempDir()
+	cacheDir := t.TempDir()
+	t.Setenv("AppData", configDir)         // Windows UserConfigDir
+	t.Setenv("XDG_CONFIG_HOME", configDir) // Linux/BSD UserConfigDir
+	t.Setenv("LocalAppData", cacheDir)     // Windows UserCacheDir
+	t.Setenv("XDG_CACHE_HOME", cacheDir)   // Linux/BSD UserCacheDir
+	t.Setenv("HOME", cacheDir)             // macOS derives both (distinct subdirs)
+
+	cfg, err := Load(Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	cacheBase, errCache := os.UserCacheDir()
+	configBase, errConfig := os.UserConfigDir()
+	if errCache != nil || errConfig != nil {
+		t.Skip("per-user base dirs unavailable in this environment")
+	}
+	sep := string(filepath.Separator)
+	if !strings.HasPrefix(cfg.TokenCachePath, cacheBase+sep) {
+		t.Errorf("token default %q is not under the cache base %q (CLI_CONVENTIONS.md §1)", cfg.TokenCachePath, cacheBase)
+	}
+	if strings.HasPrefix(cfg.TokenCachePath, configBase+sep) {
+		t.Errorf("token default %q is under the ROAMING config base %q; it must use the non-roaming cache base (CLI_CONVENTIONS.md §1)", cfg.TokenCachePath, configBase)
 	}
 }
 

@@ -49,7 +49,7 @@ Google/SSO accounts: the user must set a password in the Speediance app once
 Verify it works:
 
 ```bash
-speediance-cli login        # caches a session token (0600) in your OS user-config dir
+speediance-cli login        # caches a session token (0600) in your OS user-cache dir
 ```
 
 You can inspect the resolved configuration any time with `speediance-cli config show`
@@ -122,9 +122,10 @@ per-set detail to store.
   `config show --json` (what resolved, where) and run `login` (exit `2` = auth/connectivity
   failure; it rewrites the token cache). Don't go looking for a single health command — chain
   those instead.
-- **Token cache:** the session token is cached in the OS user-config dir by default
-  (`config path` shows the resolved location), **not** the working directory — so running
-  the CLI from another repo can't drop a credential into it. Override with
+- **Token cache:** the session token is cached in the OS user-**cache** dir by default
+  (non-roaming; `config path` shows the resolved location), **not** the working directory
+  (so running the CLI from another repo can't drop a credential into it) and **not** the
+  roaming config dir (so a live token isn't synced across machines). Override with
   `SPEEDIANCE_TOKEN_CACHE` or the `token_cache_path` config key.
 - **Secrets:** `config.json`, `.token.json`, `.env` are gitignored. Never commit them.
 - **Device:** tested for Gym Monster 1 only; GM2 untested.

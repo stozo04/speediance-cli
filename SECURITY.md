@@ -16,9 +16,10 @@ This tool authenticates to your personal Speediance account. Treat these as secr
 
 - **`config.json`** stores your email and **password in plaintext**.
 - **The token cache** stores a live session token (written with `0600` permissions where supported).
-  By default it lives in your **OS user-config directory** (`speediance/token.json` under `%AppData%`
-  on Windows, `~/.config` on Linux, `~/Library/Application Support` on macOS) — deliberately **outside**
-  the working directory so a routine `git add -A` can't commit it. Override the path with
+  By default it lives in your **OS user-cache directory** (`speediance/token.json` under `%LocalAppData%`
+  on Windows, `~/.cache` on Linux, `~/Library/Caches` on macOS) — deliberately **outside** the working
+  directory so a routine `git add -A` can't commit it, and in the **non-roaming** cache dir (not the
+  roaming config dir) so a live credential isn't synced across machines. Override the path with
   `SPEEDIANCE_TOKEN_CACHE` or the `token_cache_path` config key; `config path` shows where it resolved.
   A token left by an older version in a working-directory `.token.json` is relocated to the per-user
   location on first run.

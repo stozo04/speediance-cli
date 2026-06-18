@@ -17,6 +17,18 @@ with an immutable regression test (as described there).
 
 @.claude/CLAWHUB_STANDARDS.md
 
+## MANDATORY — shared CLI conventions
+
+`speediance-cli` shares its config/auth/credential layer design with its sibling
+`google-health-cli`. The cross-repo invariants for that layer (per-user/non-roaming
+secret locations, `0600`/`0700` perms, advertised==actual, conservative migration,
+`.env` no-inject, …) live in `.claude/CLI_CONVENTIONS.md`, committed **byte-identical**
+in both repos. Changes go through the shared agent process so both copies stay in sync —
+do not edit one repo's copy unilaterally. It is imported just below so its full text is
+always in your context.
+
+@.claude/CLI_CONVENTIONS.md
+
 ## Build & verify
 
 - `go build ./... && go vet ./... && go test ./...` must pass; `gofmt -l` must be clean.

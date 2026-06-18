@@ -278,6 +278,69 @@ func TestAuthErrorExitsTwo(t *testing.T) {
 	}
 }
 
+// TestEndToEndMigratesLegacyTokenToCacheDir exercises the full wired path through
+// the real command tree (NewRootCmd → resolveConfig → MigrateLegacy → token load
+// → API call → token write-back) against a fake API server. It is the end-to-end
+// proof of the issue #17 fix plus the CLI_CONVENTIONS.md §1 cache-dir move: a
+// legacy ./.token.json is relocated up to the per-user CACHE dir (not CWD, not the
+// roaming config dir), and the SAME session is reused — no forced re-login.
+func TestEndToEndMigratesLegacyTokenToCacheDir(t *testing.T) {
+	srv := fakeAPI(t)
+	defer srv.Close()
+
+	cwd := t.TempDir()
+	t.Chdir(cwd)
+	clearSpeedianceEnv(t)
+	t.Setenv("SPEEDIANCE_EMAIL", "e@example.com")
+	t.Setenv("SPEEDIANCE_PASSWORD", "pw")
+
+	// Point the per-user CACHE base at a temp dir so the default token path
+	// resolves there instead of the real user cache dir. Deliberately do NOT set
+	// SPEEDIANCE_TOKEN_CACHE — migration only runs for the default (unset) path.
+	cacheHome := t.TempDir()
+	t.Setenv("LocalAppData", cacheHome)   // Windows UserCacheDir
+	t.Setenv("XDG_CACHE_HOME", cacheHome) // Linux/BSD UserCacheDir
+	t.Setenv("HOME", cacheHome)           // macOS derives the cache base
+
+	// A token cached the OLD way: ./.token.json in the working directory.
+	legacy := filepath.Join(cwd, ".token.json")
+	if err := os.WriteFile(legacy, []byte(`{"token":"LEGACY","user_id":"99"}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	baseURLOverride = srv.URL
+	t.Cleanup(func() { baseURLOverride = "" })
+
+	root := NewRootCmd()
+	var out, errb bytes.Buffer
+	root.SetOut(&out)
+	root.SetErr(&errb)
+	root.SetArgs([]string{"workouts", "--json"})
+	if err := root.Execute(); err != nil {
+		t.Fatalf("workouts failed: %v\nstderr: %s", err, errb.String())
+	}
+
+	// 1) The credential no longer sits in the working directory.
+	if _, err := os.Stat(legacy); !os.IsNotExist(err) {
+		t.Errorf("legacy ./.token.json still present after run (stat err = %v); migration must remove it", err)
+	}
+
+	// 2) It now lives under the per-user CACHE base (non-roaming), carrying the
+	//    SAME token — proof the session was preserved, not re-logged-in.
+	cacheBase, err := os.UserCacheDir()
+	if err != nil {
+		t.Fatalf("UserCacheDir: %v", err)
+	}
+	migrated := filepath.Join(cacheBase, "speediance", "token.json")
+	data, err := os.ReadFile(migrated)
+	if err != nil {
+		t.Fatalf("token not found at cache-dir location %s: %v", migrated, err)
+	}
+	if !strings.Contains(string(data), "LEGACY") {
+		t.Errorf("migrated token cache = %s, want it to preserve the LEGACY session token", data)
+	}
+}
+
 func TestMissingCredentialsErrors(t *testing.T) {
 	dir := t.TempDir()
 	t.Chdir(dir)

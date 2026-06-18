@@ -87,6 +87,36 @@ git tag, not in a file — the build stamps it into the binary at release time, 
 
 ---
 
+## Release notes & changelog (auto-generated — no `CHANGELOG.md`)
+
+The de-facto changelog is the **GitHub Releases page** — there is intentionally no
+`CHANGELOG.md` to hand-maintain. On every `vX.Y.Z` tag, GoReleaser builds the release body
+**automatically**, with **zero manual step**:
+
+- **Changelog** — generated from commit subjects since the previous tag, **grouped by
+  [Conventional Commit](https://www.conventionalcommits.org) type**: `feat:` → **Features**,
+  `fix:` → **Bug fixes**, everything else → **Other changes**. Commits prefixed `docs:`,
+  `test:`, or `chore:` are **excluded** entirely.
+- **Footer** — a static install snippet (`go install …@<tag>` + a pointer to
+  `SKILL.md`/`AGENTS.md`), appended to every release.
+
+Config: `.goreleaser.yaml` → `changelog.groups` and `release.footer`. (There is no
+per-release `header`; release-specific narrative, if any, is added by hand on the GitHub
+Release after it posts.)
+
+**This is why commit subjects matter** — they *are* the release notes:
+
+- Write Conventional Commits (`feat:`, `fix:`, `docs:`, `test:`, `chore:`) so the changelog
+  groups cleanly. A commit with no recognized prefix still ships — it just lands under
+  "Other changes" instead of a tidy section.
+- **Squash-merge each PR with a clean Conventional-Commit title** so one PR = one changelog
+  line (e.g. squashing a PR with a `rev-2…rev-4` commit trail into a single `fix: …`).
+- Want a human highlight on a notable release (a behavior change, a removed command)? Land
+  the key change as a clear `feat:`/`fix:` subject, and/or edit the release body on GitHub
+  after GoReleaser posts it — the auto changelog + footer are a fine base to add a sentence to.
+
+---
+
 ## Test before you ship (optional but smart)
 
 **Local dry run** — builds all the release artifacts on your machine, publishes nothing

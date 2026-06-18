@@ -4,9 +4,10 @@ description: >
   Read completed workouts (summaries and full per-set detail), browse and export the
   exercise catalog, and push custom training programs to your Speediance (Gym Monster)
   smart cable machine via its cloud API. Authenticates with your account credentials,
-  caches a session token to a local file (.token.json), and makes outbound HTTPS requests
-  to the Speediance cloud API. Reads and emits structured data — the caller decides where
-  to store it. Ships as a single static binary — no Python or other runtime required.
+  caches a session token in your OS user-cache directory (override with SPEEDIANCE_TOKEN_CACHE),
+  and makes outbound HTTPS requests to the Speediance cloud API. Reads and emits structured
+  data — the caller decides where to store it. Ships as a single static binary — no Python or
+  other runtime required.
 metadata:
   openclaw:
     emoji: 🏋️
@@ -16,11 +17,11 @@ metadata:
       network:
         - "Speediance cloud API (HTTPS) — authentication, workout history, exercise catalog, program creation"
       files.read:
-        - "config.json — optional credential/config file in the working directory"
-        - ".token.json — cached session token (path overridable via SPEEDIANCE_TOKEN_CACHE)"
+        - "config.json — optional credential/config file (working directory, or your OS user-config dir)"
+        - "token cache — cached session token in your OS user-cache dir by default (non-roaming); path overridable via SPEEDIANCE_TOKEN_CACHE or the token_cache_path config key. A legacy .token.json in the working directory is read once to migrate it."
         - "plan JSON files passed to the push command"
       files.write:
-        - ".token.json — session token written after login and refreshed automatically"
+        - "token cache — session token written after login and refreshed automatically; in your OS user-cache dir by default (non-roaming; override via SPEEDIANCE_TOKEN_CACHE or token_cache_path). A legacy .token.json in the working directory is relocated here and then removed."
         - "library.json — exercise catalog dump (library command)"
     requires:
       bins: []
@@ -39,6 +40,12 @@ metadata:
         required: false
       - name: SPEEDIANCE_DEVICE_TYPE
         description: "Device type integer — 1 = Gym Monster v1 (default, tested). Gym Monster 2 is untested; try 2 if exercises look wrong."
+        required: false
+      - name: SPEEDIANCE_CONFIG
+        description: "Path to config.json (overrides discovery: working dir, then OS user-config dir)"
+        required: false
+      - name: SPEEDIANCE_TOKEN_CACHE
+        description: "Override the token cache file location (default: OS user-cache dir)"
         required: false
 ---
 
@@ -71,7 +78,7 @@ go install github.com/stozo04/speediance-cli/cmd/speediance-cli@latest
 Then authenticate:
 
 ```bash
-speediance-cli login   # authenticates and caches a token in .token.json
+speediance-cli login   # authenticates and caches a session token (run `config path` to see where)
 ```
 
 ## Credentials
@@ -210,7 +217,7 @@ layout.
 
 | Command | What it does | `--json` |
 |---|---|---|
-| `login` | Authenticate and cache a token in `.token.json` | — |
+| `login` | Authenticate and cache a session token | — |
 | `workouts [--days N]` | List recent completed sessions | ✓ |
 | `session <training_id>` | Full per-set detail for one session | ✓ |
 | `library [--search X] [--out FILE]` | Dump or search exercise catalog | ✓ |
@@ -224,8 +231,14 @@ layout.
 - **stdout is parseable** with `--json`; all human-readable hints go to **stderr**.
 - **Exit codes**: `0` success, `2` authentication failure, non-zero for other errors.
 - **Secrets**: `config.json`, `.token.json`, `.env` are gitignored — never commit them.
-- **Token caching**: after the first login, the token is cached in `.token.json` and
-  refreshed automatically on expiry.
+- **Token caching**: after the first login, the token is cached in your **OS user-cache
+  directory** (e.g. `%LocalAppData%\speediance\token.json` on Windows, `~/.cache/speediance/token.json`
+  on Linux, `~/Library/Caches/speediance/token.json` on macOS) and refreshed automatically on
+  expiry — *not* in the working directory (so it can't be swept into a commit) and *not* in the
+  roaming config dir (so a live credential isn't synced across machines). Override the location with
+  `SPEEDIANCE_TOKEN_CACHE` or the `token_cache_path` config key; run `speediance-cli config path` to
+  see where it resolved. A token left in a legacy `.token.json` by an older version is moved to the
+  per-user location on first run.
 - **Dry-run first**: always use `--dry-run` before `push` when authoring new programs to
   confirm exercise IDs resolved correctly.
 - If an endpoint breaks after a Speediance app update, all API calls live in

@@ -61,7 +61,32 @@ changelog:
       - "^docs:"
       - "^test:"
       - "^chore:"
+  # Group the auto-generated changelog by Conventional Commit type, so every tagged
+  # release gets organized notes with no manual step. Commits without a recognized
+  # prefix fall into "Other changes". Use feat:/fix: to land in a section.
+  groups:
+    - title: Features
+      regexp: '^.*?feat(\([[:word:]]+\))??!?:.+$'
+      order: 0
+    - title: Bug fixes
+      regexp: '^.*?fix(\([[:word:]]+\))??!?:.+$'
+      order: 1
+    - title: Other changes
+      order: 999
 
 release:
   draft: false
   prerelease: auto
+  # Static, version-agnostic footer appended to every release body (the per-release
+  # changelog is generated above, grouped by Conventional Commit type). {{ .Tag }}
+  # resolves to the release tag — never hardcode the version here.
+  footer: |
+    ## Install
+
+    Download a binary from the assets below, or with Go:
+
+    ```sh
+    go install github.com/stozo04/speediance-cli/cmd/speediance-cli@{{ .Tag }}
+    ```
+
+    See the bundled `SKILL.md` / `AGENTS.md` for usage and the JSON + exit-code contract.

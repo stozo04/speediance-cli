@@ -99,12 +99,12 @@ have. If setup isn't working, walk these in order:
 ```bash
 speediance-cli version          # is the binary installed, and which build?
 speediance-cli config show      # are email/region/device_type what you expect? (password masked)
-speediance-cli config path      # where did config.json and .token.json resolve?
+speediance-cli config path      # where did config.json and the token cache resolve?
 speediance-cli login            # does auth + connectivity actually work?  (exit code 2 = auth failure)
 ```
 
 `login` is the real connectivity test: it forces a fresh authentication against the API
-and exits `2` if the credentials are wrong (note it also rewrites `.token.json`). Together
+and exits `2` if the credentials are wrong (note it also rewrites the token cache). Together
 these answer *what's installed, what config resolved, and does the account connect* —
 everything a `doctor` command would have bundled into one report.
 
@@ -118,6 +118,13 @@ GitHub Actions — no manual publish step needed.
 ## Notes
 
 - Built/tested for **Gym Monster 1** only (see device note above). GM2 is untested.
+- The session **token cache** lives in your OS user-cache dir by default (e.g.
+  `~/.cache/speediance/token.json`; `%LocalAppData%\speediance\token.json` on Windows),
+  **not** the working directory — so it can't be swept into a commit — and in the
+  **non-roaming** cache dir rather than the roaming config dir, so a live credential
+  isn't synced across machines. Override with `SPEEDIANCE_TOKEN_CACHE` or the
+  `token_cache_path` config key; `config path` shows where it resolved. An older
+  `.token.json` in the working directory is migrated automatically on first run.
 - "Free Lift" (freestyle) sessions return totals only — no per-set detail. Programs do.
 - `library.json` is a committed **snapshot** of the exercise catalog for convenience;
   regenerate it anytime with `speediance-cli library`.
@@ -130,7 +137,7 @@ A thin `cmd/` entrypoint over a closed `internal/` tree (the `gh` pattern):
 - `cmd/speediance-cli/`  — entrypoint (`main`); maps errors to exit codes
 - `internal/api/`        — HTTP client: frozen headers, auth, token refresh, endpoints
 - `internal/config/`     — config + credential discovery (env / file / flags)
-- `internal/auth/`       — `.token.json` cache (0600)
+- `internal/auth/`       — token cache (0600), per-user OS config dir by default
 - `internal/template/`   — exercise library + build/create programs from a plan
 - `internal/workout/`    — workout/session models, record parsing, timestamp handling
 - `internal/cli/`        — Cobra command wiring (one file per command)

@@ -78,3 +78,41 @@ func Save(path string, tok Token) error {
 	}
 	return nil
 }
+
+// MigrateLegacy relocates a token cache from a legacy working-directory path to
+// the resolved per-user location, one time, on upgrade. It exists for issue #17:
+// the old default cached the live session token as ".token.json" in the current
+// working directory, where a routine `git add -A` could commit and push a working
+// credential. Relocating it both removes the credential from the committable tree
+// and spares the user a forced re-login.
+//
+// It is conservative and best-effort: it acts only when the resolved path differs
+// from the legacy one, the legacy file holds a usable token, and the destination
+// does not already exist (so a newer token is never clobbered). The legacy file
+// is removed only after the new copy is safely written. Any failure is returned
+// for the caller to log and is never fatal — the worst case is that the next call
+// logs in fresh.
+func MigrateLegacy(resolvedPath, legacyPath string) (migrated bool, err error) {
+	if resolvedPath == "" || legacyPath == "" || resolvedPath == legacyPath {
+		return false, nil
+	}
+	// Never overwrite a token already at the destination.
+	if _, statErr := os.Stat(resolvedPath); statErr == nil {
+		return false, nil
+	}
+	tok, ok, loadErr := Load(legacyPath)
+	if loadErr != nil || !ok {
+		// No usable legacy token (missing or corrupt) — nothing worth moving, and
+		// a corrupt file carries no live credential to relocate.
+		return false, nil
+	}
+	if err := Save(resolvedPath, tok); err != nil {
+		return false, fmt.Errorf("migrate token cache to %s: %w", resolvedPath, err)
+	}
+	// The token now lives safely in the per-user dir; remove the old copy so the
+	// credential no longer sits in the working directory.
+	if err := os.Remove(legacyPath); err != nil {
+		return true, fmt.Errorf("remove legacy token cache %s: %w", legacyPath, err)
+	}
+	return true, nil
+}

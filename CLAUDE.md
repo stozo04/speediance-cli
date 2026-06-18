@@ -17,10 +17,48 @@ with an immutable regression test (as described there).
 
 @.claude/CLAWHUB_STANDARDS.md
 
+## MANDATORY — shared CLI conventions
+
+`speediance-cli` shares its config/auth/credential layer design with its sibling
+`google-health-cli`. The cross-repo invariants for that layer (per-user/non-roaming
+secret locations, `0600`/`0700` perms, advertised==actual, conservative migration,
+`.env` no-inject, …) live in `.claude/CLI_CONVENTIONS.md`, committed **byte-identical**
+in both repos. Changes go through the shared agent process so both copies stay in sync —
+do not edit one repo's copy unilaterally. It is imported just below so its full text is
+always in your context.
+
+@.claude/CLI_CONVENTIONS.md
+
 ## Build & verify
 
 - `go build ./... && go vet ./... && go test ./...` must pass; `gofmt -l` must be clean.
 - `main` is PR-protected — land changes via pull request.
+
+## PR gate — guard tests are mandatory and immutable
+
+A PR may not be opened or merged unless `go build ./... && go vet ./... && go test -race ./...`
+pass and `gofmt -l` is clean. This is **enforced, not advisory**: CI
+(`.github/workflows/ci.yml`) runs build + `go test -race` + lint on every `pull_request`.
+
+The **negative-assertion guard tests** — every test named in the SPD cells of
+`.claude/CLI_CONVENTIONS.md` (§0, §1, §3, §5, §7, §9) **plus**
+`internal/cli`'s `TestEndToEndMigratesLegacyTokenToCacheDir` — are **immutable**: each
+asserts that a known bad thing does **not** happen (a secret in CWD, a token in the
+roaming base, a `.env` mutating the process env, an advertised-but-unwired key, …). They
+must never be skipped (`t.Skip`), deleted, or weakened to turn a PR green — a red guard
+means **fix the code, not the test**. Any new credential / config / permission / network
+behavior ships with its guard in the **same** PR (see `.claude/CLAWHUB_STANDARDS.md`).
+
+## Commits & releases
+
+Commit subjects follow [Conventional Commits](https://www.conventionalcommits.org)
+(`feat:`, `fix:`, `docs:`, `test:`, `chore:`) — this is **load-bearing, not cosmetic**.
+Releases are cut by pushing a `vX.Y.Z` git tag (never by merging), and GoReleaser
+auto-builds the GitHub Release notes by **grouping commit subjects** (`feat:` → Features,
+`fix:` → Bug fixes, else → Other changes; `docs:`/`test:`/`chore:` excluded) plus a static
+install footer — there is **no `CHANGELOG.md`**. Use the right prefix so the changelog groups
+cleanly, and squash-merge PRs with a clean Conventional-Commit title. Full release playbook
+(versioning, tagging, dry-runs): `Releasing.md`.
 
 ## Scope — don't add a `doctor`/health command
 

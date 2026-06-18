@@ -33,7 +33,21 @@ const (
 	DefaultDeviceType = 1 // Gym Monster 1 — the only tested device.
 
 	defaultConfigName = "config.json"
-	defaultTokenName  = ".token.json"
+
+	// appUserSubdir is the per-user application directory name, shared by both
+	// per-user locations but placed under the purpose-appropriate base: the token
+	// cache under os.UserCacheDir (non-roaming), config under os.UserConfigDir.
+	// Either way it keeps state out of the — frequently version-controlled —
+	// working directory. (CLI_CONVENTIONS.md §1, §2.)
+	appUserSubdir = "speediance"
+	// userTokenName is the token cache filename inside the per-user app dir.
+	userTokenName = "token.json"
+	// legacyTokenName is the pre-#17 default: a ".token.json" dropped in the
+	// current working directory. That default leaked a live credential into
+	// whatever repo the tool ran from (a stray `git add -A` could commit it), so
+	// it is no longer the default — it is kept only so an existing cache there
+	// can be migrated up to the per-user location instead of forcing a re-login.
+	legacyTokenName = ".token.json"
 )
 
 // ErrMissingCredentials is returned by RequireCredentials when email or
@@ -52,8 +66,14 @@ type Config struct {
 	ConfigPath string
 	// ConfigExists reports whether ConfigPath was present on disk at load time.
 	ConfigExists bool
-	// TokenCachePath is the resolved location of .token.json.
+	// TokenCachePath is the resolved location of the session token cache.
 	TokenCachePath string
+	// TokenCacheIsDefault reports that TokenCachePath came from the built-in
+	// per-user default rather than an explicit override (SPEEDIANCE_TOKEN_CACHE
+	// or the token_cache_path config key). It guards the one-time migration of a
+	// legacy working-directory .token.json (issue #17): an explicit override is
+	// always honored verbatim and never triggers migration.
+	TokenCacheIsDefault bool
 }
 
 // fileConfig mirrors config.json. Pointer fields distinguish "key present" from
@@ -64,6 +84,11 @@ type fileConfig struct {
 	Password   *string `json:"password"`
 	Region     *string `json:"region"`
 	DeviceType *int    `json:"device_type"`
+	// TokenCachePath maps the token_cache_path key. It is resolved separately
+	// from applyFile (in Load) because the token cache obeys env-over-file
+	// precedence; previously this key was advertised by `config show` but
+	// silently ignored by the loader (issue #17).
+	TokenCachePath *string `json:"token_cache_path"`
 }
 
 // Options carries inputs the caller already knows from flags, so config
@@ -116,15 +141,44 @@ func Load(opts Options) (*Config, error) {
 	// defaults. (envLayer distinguishes set-empty from unset, like LookupEnv.)
 	applyEnv(cfg, dotenv)
 
-	// 3. Token cache location.
+	// 3. Token cache location. Precedence mirrors the global contract: an explicit
+	// SPEEDIANCE_TOKEN_CACHE (real env or .env) wins, then the token_cache_path
+	// config key, then the per-user default. The default lives in the non-roaming
+	// per-user cache dir, OUTSIDE the working directory: a token cached in CWD is a
+	// live credential a routine `git add -A` could commit (issue #17), and a token
+	// in the roaming config dir can sync across machines (CLI_CONVENTIONS.md §1).
 	if v, ok := envLayer(dotenv, EnvTokenCache); ok {
 		cfg.TokenCachePath = v
+	} else if fc.TokenCachePath != nil && *fc.TokenCachePath != "" {
+		cfg.TokenCachePath = *fc.TokenCachePath
 	} else {
-		cfg.TokenCachePath = defaultTokenName // .token.json in CWD (Python parity).
+		cfg.TokenCachePath = defaultTokenCachePath()
+		cfg.TokenCacheIsDefault = true
 	}
 
 	return cfg, nil
 }
+
+// defaultTokenCachePath returns the per-user token cache location,
+// <os.UserCacheDir>/speediance/token.json. The cache base is deliberate: a token
+// is regenerable state, not config, and os.UserCacheDir is non-roaming
+// (Windows %LocalAppData%) — unlike os.UserConfigDir (%AppData%\Roaming), which
+// can sync a live credential across machines (CLI_CONVENTIONS.md §1). It also
+// resolves OUTSIDE the working directory so the credential can't be swept into a
+// commit (issue #17). If the cache base can't be determined (a rare, HOME-less
+// environment), it falls back to the legacy working-directory path so the tool
+// still functions.
+func defaultTokenCachePath() string {
+	if dir, err := os.UserCacheDir(); err == nil {
+		return filepath.Join(dir, appUserSubdir, userTokenName)
+	}
+	return legacyTokenName
+}
+
+// LegacyTokenCachePath is the pre-#17 default token cache location (.token.json
+// in the working directory). It is exported only so the CLI can find and migrate
+// an existing cache there up to the per-user default.
+func LegacyTokenCachePath() string { return legacyTokenName }
 
 // discoverConfigPath implements GOAL.md §7 file discovery:
 //  1. --config flag or SPEEDIANCE_CONFIG env (explicit path; flag wins).
@@ -147,7 +201,7 @@ func discoverConfigPath(flagPath string, dotenv map[string]string) (string, erro
 	// Optional modern fallback: only adopt it if the file is actually there, so
 	// the CWD default stays authoritative for existing agents.
 	if dir, err := os.UserConfigDir(); err == nil {
-		alt := filepath.Join(dir, "speediance", defaultConfigName)
+		alt := filepath.Join(dir, appUserSubdir, defaultConfigName)
 		if _, err := os.Stat(alt); err == nil {
 			return alt, nil
 		}
@@ -226,11 +280,18 @@ func envLayer(dotenv map[string]string, key string) (string, bool) {
 // RequireCredentials returns a friendly error (to be shown on stderr) when
 // email or password is missing after resolution. GOAL.md §7.
 func (c *Config) RequireCredentials() error {
-	if c.Email == "" || c.Password == "" {
-		return fmt.Errorf("%w: set %s and %s (or add \"email\"/\"password\" to %s)",
-			ErrMissingCredentials, EnvEmail, EnvPassword, c.ConfigPath)
+	if c.Email != "" && c.Password != "" {
+		return nil
 	}
-	return nil
+	// Name where we looked, in precedence order, so the caller can fix it without
+	// guessing — never a bare "missing credentials" (CLI_CONVENTIONS.md §5). No
+	// secret values are echoed.
+	return fmt.Errorf(
+		"%w: set %s and %s (exported env vars, or a .env in the working directory), "+
+			"or add \"email\"/\"password\" to config.json. config.json is resolved from "+
+			"--config / %s, then ./%s, then <user-config-dir>/%s/%s (resolved this run: %s)",
+		ErrMissingCredentials, EnvEmail, EnvPassword,
+		EnvConfig, defaultConfigName, appUserSubdir, defaultConfigName, c.ConfigPath)
 }
 
 // DeviceWarning returns a non-empty warning string when a non-GM1 device is

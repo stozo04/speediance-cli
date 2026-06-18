@@ -49,6 +49,17 @@ must never be skipped (`t.Skip`), deleted, or weakened to turn a PR green — a 
 means **fix the code, not the test**. Any new credential / config / permission / network
 behavior ships with its guard in the **same** PR (see `.claude/CLAWHUB_STANDARDS.md`).
 
+## Commits & releases
+
+Commit subjects follow [Conventional Commits](https://www.conventionalcommits.org)
+(`feat:`, `fix:`, `docs:`, `test:`, `chore:`) — this is **load-bearing, not cosmetic**.
+Releases are cut by pushing a `vX.Y.Z` git tag (never by merging), and GoReleaser
+auto-builds the GitHub Release notes by **grouping commit subjects** (`feat:` → Features,
+`fix:` → Bug fixes, else → Other changes; `docs:`/`test:`/`chore:` excluded) plus a static
+install footer — there is **no `CHANGELOG.md`**. Use the right prefix so the changelog groups
+cleanly, and squash-merge PRs with a clean Conventional-Commit title. Full release playbook
+(versioning, tagging, dry-runs): `Releasing.md`.
+
 ## Scope — don't add a `doctor`/health command
 
 The diagnostic surface is **intentionally** spread across existing commands, not bundled

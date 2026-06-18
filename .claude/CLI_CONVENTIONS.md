@@ -1,11 +1,12 @@
 # Shared CLI Conventions — google-health-cli & speediance-cli
 
-**Locked 2026-06-18 (rev 2).** Re-locked after an external best-practice review
-moved the **token** base from `os.UserConfigDir` to the non-roaming
-`os.UserCacheDir` (see §1). Committed **byte-identical** to both repos and
-`@import`-ed from each `CLAUDE.md`, the same way `.claude/CLAWHUB_STANDARDS.md`
-already is. Propose changes through the shared agent process so both copies stay
-in sync.
+**Locked 2026-06-18 (rev 3).** rev 2 moved the **token** base to the non-roaming
+`os.UserCacheDir` (see §1); rev 3 flips the per-repo cells from "pending/TODO" to
+the shipped guards, now that both sides have implemented them (GH in PR #10, which
+marries the code and this doc; SPD in PR #21). Committed **byte-identical** to both
+repos and `@import`-ed from each `CLAUDE.md`, the same way
+`.claude/CLAWHUB_STANDARDS.md` already is. Propose changes through the shared agent
+process so both copies stay in sync.
 
 These are two self-contained, read-only, agent-first CLIs (one Go binary, no
 runtime deps) that share a config/auth/credential layer. This file captures the
@@ -42,7 +43,7 @@ in the table** and tracked toward a test.
 
 | | GH | SPD |
 |---|---|---|
-| guards | `TestCatalogIsReadOnly` (no mutating op in catalog), `TestSkillDocWarnsAboutSensitiveOutput` | `TestTokenCacheConfigKeyHonored` (advertised `token_cache_path` now actually wired — a literal advertised==actual test), `TestDotEnvDoesNotInjectForeignEnv`; SKILL-perms==code via ClawHub publish scan + manual pre-publish checklist (automated test = SPD adoption-PR TODO) |
+| guards | `TestCatalogIsReadOnly` (no mutating op in catalog), `TestSkillDocWarnsAboutSensitiveOutput` | `TestTokenCacheConfigKeyHonored` (advertised `token_cache_path` actually wired), `TestDotEnvDoesNotInjectForeignEnv`, `TestSkillDocAdvertisesEveryEnvVar` (every read `SPEEDIANCE_*` is documented), `TestSkillDocPromisesNoShellOut` |
 
 ## 1. Per-user state dir — never a CWD secret; non-roaming base for tokens
 
@@ -66,8 +67,8 @@ inside the CWD and (b) is under the cache base, **not** the roaming config base.
 
 | | GH | SPD |
 |---|---|---|
-| token file | `<UserConfigDir>/google-health-cli/token.json` → **migrating to `<UserCacheDir>/google-health-cli/token.json`** (shipped default; relocation PR pending) | `<UserCacheDir>/speediance/token.json` (retargeting pre-merge #21) |
-| guard | `TestTokenCacheDefaultNotInWorkingDir` (PR #10); `TestTokenCacheDefaultIsNotRoaming` ships with the relocation | `TestTokenCacheDefaultNotInWorkingDir`, `TestTokenCacheDefaultIsNotRoaming` |
+| token file | `<UserCacheDir>/google-health-cli/token.json` (relocated from the former `<UserConfigDir>` default + forward-migration; pre-merge PR #10) | `<UserCacheDir>/speediance/token.json` (pre-merge #21) |
+| guard | `TestTokenCacheDefaultNotInWorkingDir`, `TestTokenCacheDefaultIsNotRoaming` | `TestTokenCacheDefaultNotInWorkingDir`, `TestTokenCacheDefaultIsNotRoaming` |
 
 ## 2. One app-dir name, placed in the purpose-appropriate base
 
@@ -113,7 +114,7 @@ ID"`); translate it into a cause the caller can act on.
 
 | | GH | SPD |
 |---|---|---|
-| surface | `missingCredentialsError` (exit 64), names `SearchedPaths` | `RequireCredentials` — names env vars + resolved config path (enrich to full search order = SPD adoption-PR TODO) |
+| surface | `missingCredentialsError` (exit 64), names `SearchedPaths` | `RequireCredentials` — names the full discovery order + the path resolved this run |
 
 ## 6. A machine-checkable config + credential state that exits non-zero when broken
 
@@ -140,7 +141,7 @@ So no user is forced to re-auth, and the credential actually leaves the old spot
 
 | | GH | SPD |
 |---|---|---|
-| status | **migration planned** — relocate the shipped `<UserConfigDir>` token → `<UserCacheDir>` (per §1's rev-2 move) using this pattern; PR pending | `auth.MigrateLegacy` (`.token.json` → per-user), `TestMigrateLegacyMovesToken` |
+| status | `auth.MigrateLegacyToken` (`<UserConfigDir>` → `<UserCacheDir>`), `TestMigrateLegacyToken{,NeverClobbers,NoLegacy}` (pre-merge PR #10) | `auth.MigrateLegacy` (`.token.json` → per-user), `TestMigrateLegacyMovesToken` |
 
 ## 8. Portable paths in tracked docs
 

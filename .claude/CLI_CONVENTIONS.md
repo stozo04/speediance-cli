@@ -1,11 +1,12 @@
 # Shared CLI Conventions — google-health-cli & speediance-cli
 
-**Locked 2026-06-18 (rev 4).** rev 2 moved the **token** base to the non-roaming
+**Locked 2026-06-18 (rev 5).** rev 2 moved the **token** base to the non-roaming
 `os.UserCacheDir` (see §1); rev 3 flipped the per-repo cells to the shipped guards;
-rev 4 adds **§10** — the guards are an immutable, CI-enforced PR gate. Committed
-**byte-identical** to both repos and `@import`-ed from each `CLAUDE.md`, the same
-way `.claude/CLAWHUB_STANDARDS.md` already is. Propose changes through the shared
-agent process so both copies stay in sync.
+rev 4 added **§10** (guards = an immutable, CI-enforced PR gate); rev 5 carves out
+the legitimate platform-inapplicable `t.Skip` in §10. Committed **byte-identical**
+to both repos and `@import`-ed from each `CLAUDE.md`, the same way
+`.claude/CLAWHUB_STANDARDS.md` already is. Propose changes through the shared agent
+process so both copies stay in sync.
 
 These are two self-contained, read-only, agent-first CLIs (one Go binary, no
 runtime deps) that share a config/auth/credential layer. This file captures the
@@ -164,10 +165,13 @@ vars (a privilege-escalation vector).
 The guard tests named in the cells above are not advisory — they **gate every
 PR**. CI runs the full suite (`go test -race ./...`) on every pull request in both
 repos, and a red guard blocks the merge. The guards are **immutable**: a
-negative-assertion test may never be skipped (`t.Skip`), deleted, or weakened to
-turn a PR green — a failing guard means **fix the code, not the test**. Any new
-credential / config / permission / network behavior ships with (or extends) its
-guard in the **same** PR that introduces it.
+negative-assertion test may never be deleted, weakened, or skipped **to dodge a
+failure** — a failing guard means **fix the code, not the test**. (A narrow
+`t.Skip` for a platform where the assertion is genuinely *inapplicable* — e.g.
+Unix permission bits on Windows — is legitimate **provided the guard still runs
+for real on the CI gate**; that is not weakening it.) Any new credential / config
+/ permission / network behavior ships with (or extends) its guard in the **same**
+PR that introduces it.
 
 | | GH | SPD |
 |---|---|---|

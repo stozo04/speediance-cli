@@ -145,10 +145,12 @@ end up with two different "v1.0.1"s, which is the thing versioning exists to pre
 ## Known quirks / gotchas
 
 - **Tags must start with `v`** — the release workflow only triggers on `v*`.
-- **Lint Go-version pin:** `ci.yml`'s lint job is pinned to the module's Go version
-  (`go-version-file: go.mod`) so the golangci-lint release binary doesn't panic. If you
-  bump the `go` directive in `go.mod`, you'll likely need to bump golangci-lint too.
-  See **issue #15** for the proper cleanup.
+- **golangci-lint vs. toolchain:** golangci-lint embeds the Go type-checker of the Go
+  version it was built with, so the linter must be built with a Go **≥** the toolchain
+  it lints under. `ci.yml`'s lint job runs on `stable` with golangci-lint `v2.12.2`
+  (built with go1.26). If you bump the `go` directive in `go.mod` past the linter's
+  build version, bump `version:` in the lint job too, or it panics with
+  `file requires newer Go version ... (built with ...)`.
 - **GoReleaser runs `go mod tidy`** before building — keep `go.mod`/`go.sum` tidy or it
   may complain.
 - **ClawHub** publishes automatically on a `SKILL.md` change to `main`; you can also run

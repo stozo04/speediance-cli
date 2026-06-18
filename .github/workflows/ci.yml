@@ -29,12 +29,13 @@ jobs:
       - uses: actions/checkout@v6
       - uses: actions/setup-go@v6
         with:
-          # Pin the linter's toolchain to the module's Go version so it matches
-          # the official golangci-lint release binary (built with go1.24). Using
-          # a newer toolchain (e.g. stable/go1.26) makes golangci-lint v2.1.6
-          # panic: "file requires newer Go version go1.26 (built with go1.24)".
-          go-version-file: go.mod
+          go-version: stable
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v9
         with:
-          version: v2.1.6
+          # golangci-lint embeds the Go type-checker of the toolchain it was
+          # built with, so it must be built with a Go >= the toolchain it lints
+          # under (here: stable/go1.26). v2.12.2 is built with go1.26; bump this
+          # in lockstep if go.mod's `go` directive ever outpaces the linter,
+          # otherwise it panics: "file requires newer Go version ... (built with ...)".
+          version: v2.12.2

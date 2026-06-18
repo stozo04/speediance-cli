@@ -118,6 +118,10 @@ per-set detail to store.
 - **stdout is parseable** with `--json`; human hints, warnings, and logs go to **stderr**.
   They are never interleaved, so piping stdout into a parser is safe.
 - **Exit codes:** `0` success, `2` auth failure, non-zero for other errors. Check them.
+- **No `doctor`/health command — by design.** To diagnose setup programmatically, read
+  `config show --json` (what resolved, where) and run `login` (exit `2` = auth/connectivity
+  failure; it rewrites `.token.json`). Don't go looking for a single health command — chain
+  those instead.
 - **Secrets:** `config.json`, `.token.json`, `.env` are gitignored. Never commit them.
 - **Device:** tested for Gym Monster 1 only; GM2 untested.
 - **Unofficial API:** all endpoints live in `internal/api`; if the Speediance app updates

@@ -1,9 +1,10 @@
 # Shared CLI Conventions — google-health-cli & speediance-cli
 
-**Locked 2026-06-18 (rev 5).** rev 2 moved the **token** base to the non-roaming
+**Locked 2026-06-18 (rev 6).** rev 2 moved the **token** base to the non-roaming
 `os.UserCacheDir` (see §1); rev 3 flipped the per-repo cells to the shipped guards;
-rev 4 added **§10** (guards = an immutable, CI-enforced PR gate); rev 5 carves out
-the legitimate platform-inapplicable `t.Skip` in §10. Committed **byte-identical**
+rev 4 added **§10** (guards = an immutable, CI-enforced PR gate); rev 5 carved out
+the legitimate platform-inapplicable `t.Skip` in §10; rev 6 drops the transient
+"pre-merge PR" markers now the changes have landed. Committed **byte-identical**
 to both repos and `@import`-ed from each `CLAUDE.md`, the same way
 `.claude/CLAWHUB_STANDARDS.md` already is. Propose changes through the shared agent
 process so both copies stay in sync.
@@ -67,7 +68,7 @@ inside the CWD and (b) is under the cache base, **not** the roaming config base.
 
 | | GH | SPD |
 |---|---|---|
-| token file | `<UserCacheDir>/google-health-cli/token.json` (relocated from the former `<UserConfigDir>` default + forward-migration; pre-merge PR #10) | `<UserCacheDir>/speediance/token.json` (pre-merge #21) |
+| token file | `<UserCacheDir>/google-health-cli/token.json` (relocated from the former `<UserConfigDir>` default + forward-migration) | `<UserCacheDir>/speediance/token.json` |
 | guard | `TestTokenCacheDefaultNotInWorkingDir`, `TestTokenCacheDefaultIsNotRoaming` | `TestTokenCacheDefaultNotInWorkingDir`, `TestTokenCacheDefaultIsNotRoaming` |
 
 ## 2. One app-dir name, placed in the purpose-appropriate base
@@ -141,7 +142,7 @@ So no user is forced to re-auth, and the credential actually leaves the old spot
 
 | | GH | SPD |
 |---|---|---|
-| status | `auth.MigrateLegacyToken` (`<UserConfigDir>` → `<UserCacheDir>`), `TestMigrateLegacyToken{,NeverClobbers,NoLegacy}`, `TestEndToEndMigratesLegacyTokenToCacheDir` (pre-merge PR #10) | `auth.MigrateLegacy` (`.token.json` → per-user), `TestMigrateLegacyMovesToken`, `TestEndToEndMigratesLegacyTokenToCacheDir` |
+| status | `auth.MigrateLegacyToken` (`<UserConfigDir>` → `<UserCacheDir>`), `TestMigrateLegacyToken{,NeverClobbers,NoLegacy}`, `TestEndToEndMigratesLegacyTokenToCacheDir` | `auth.MigrateLegacy` (`.token.json` → per-user), `TestMigrateLegacyMovesToken`, `TestEndToEndMigratesLegacyTokenToCacheDir` |
 
 ## 8. Portable paths in tracked docs
 

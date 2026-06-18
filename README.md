@@ -90,6 +90,24 @@ Author a plan (a human, a coach, or an LLM can write it), then `push` it:
 - **Secrets:** `config.json`, `.token.json`, `.env`, and `plans/` are gitignored. Never
   commit them. Prefer env vars for agents/headless use.
 
+## Troubleshooting
+
+There's intentionally **no `doctor` / health-check command** — with a single dependency
+(the Speediance API), the diagnostics you'd want are already split across commands you
+have. If setup isn't working, walk these in order:
+
+```bash
+speediance-cli version          # is the binary installed, and which build?
+speediance-cli config show      # are email/region/device_type what you expect? (password masked)
+speediance-cli config path      # where did config.json and .token.json resolve?
+speediance-cli login            # does auth + connectivity actually work?  (exit code 2 = auth failure)
+```
+
+`login` is the real connectivity test: it forces a fresh authentication against the API
+and exits `2` if the credentials are wrong (note it also rewrites `.token.json`). Together
+these answer *what's installed, what config resolved, and does the account connect* —
+everything a `doctor` command would have bundled into one report.
+
 ## ClawHub skill
 
 This tool is published as a public skill on [ClawHub](https://clawhub.ai/stozo04/speediance)

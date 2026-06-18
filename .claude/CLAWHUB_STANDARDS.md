@@ -95,6 +95,34 @@ attacker-influenceable, so a stray/hostile `.env` could inject `PATH`,
 - Don't try to "hide" from the scanner by deleting honest comments — fix the
   behavior; the clearer comment is a side effect.
 
+## 7. Community-friendly paths — never machine-specific
+
+**Documentation paths must be community-friendly — never machine-specific.** Any
+path in tracked docs, comments, examples, or commit messages must be **generic and
+portable**: no absolute paths, no home directories, no usernames, no machine-local
+install locations (e.g. `C:\Users\NAME\...`, `/home/NAME/...`, `%AppData%\...`).
+Use repo-relative paths, placeholders (`<path-to-go>`, `$(go env GOPATH)`, `~`), or
+environment variables instead. Leaking a local layout is noise to contributors and
+a minor info-disclosure smell; treat the docs as if a stranger will read them,
+because once published they will.
+
+The same rule applies to **code, tests, scripts, CI, `Makefile`, and
+`.goreleaser.yaml`** — resolve paths at runtime, never bake in a literal one:
+
+- Go: `os.UserConfigDir()`, `os.UserHomeDir()`, `os.TempDir()`, `t.TempDir()` in
+  tests, `filepath.Join`, or env lookups — never a literal home dir.
+  `internal/config/config.go:discoverConfigPath` already models this with
+  `os.UserConfigDir()`.
+- Docs / scripts / CI: `$(go env GOPATH)/bin`, `$HOME`, `%USERPROFILE%`,
+  `$GITHUB_WORKSPACE`, or repo-relative paths. README and AGENTS.md already use
+  `$(go env GOPATH)/bin` — keep that style.
+- Build paths with `filepath.Join` (not hardcoded `\` or `/`); tests write only
+  under `t.TempDir()`. A fake path used purely as *test data* (e.g. an ignored
+  `.env` value like `/tmp/evil.so`) is fine; an actual filesystem dependency on a
+  hardcoded absolute path is not.
+- Examples and sample configs use neutral placeholders — `you@example.com`,
+  `/path/to/plan.json`, `<training_id>` — never a real local path or username.
+
 ---
 
 ## Pre-publish checklist
@@ -108,6 +136,7 @@ Run before merging anything that touches config, auth, file I/O, network, or
 - [ ] No secret printed to stdout/stderr/logs at any verbosity; passwords masked in `config show`.
 - [ ] `SKILL.md` permissions/env/network block matches the code exactly.
 - [ ] No new `os/exec`, shell-out, or non-HTTPS / user-supplied network target.
+- [ ] No machine-specific paths (home dirs, usernames, drive letters) in code, docs, comments, or commit messages — placeholders or runtime resolution only.
 - [ ] `go build ./... && go vet ./... && go test ./...` all green; `gofmt -l` clean.
 - [ ] New security behavior is pinned by an **immutable regression test** (below).
 

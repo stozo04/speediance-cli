@@ -15,12 +15,17 @@ fix or mitigation will be coordinated before any public disclosure.
 This tool authenticates to your personal Speediance account. Treat these as secrets:
 
 - **`config.json`** stores your email and **password in plaintext**.
-- **`.token.json`** stores a live session token (written with `0600` permissions where supported).
+- **The token cache** stores a live session token (written with `0600` permissions where supported).
+  By default it lives in your **OS user-config directory** (`speediance/token.json` under `%AppData%`
+  on Windows, `~/.config` on Linux, `~/Library/Application Support` on macOS) — deliberately **outside**
+  the working directory so a routine `git add -A` can't commit it. Override the path with
+  `SPEEDIANCE_TOKEN_CACHE` or the `token_cache_path` config key; `config path` shows where it resolved.
+  A token left by an older version in a working-directory `.token.json` is relocated to the per-user
+  location on first run.
 - **`.env`** may store the same credentials.
 
-All three are **gitignored** and must never be committed. For agents/headless use, prefer environment
-variables (`SPEEDIANCE_EMAIL` / `SPEEDIANCE_PASSWORD`) over an on-disk file. The token cache location is
-overridable via `SPEEDIANCE_TOKEN_CACHE`.
+These are **gitignored** and must never be committed. For agents/headless use, prefer environment
+variables (`SPEEDIANCE_EMAIL` / `SPEEDIANCE_PASSWORD`) over an on-disk file.
 
 > This is an **unofficial** client for a reverse-engineered API. Use it only with your own account and
 > data, at your own risk.

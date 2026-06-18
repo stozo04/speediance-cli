@@ -3,6 +3,8 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"strconv"
+	"strings"
 	"testing"
 )
 
@@ -27,8 +29,122 @@ func TestDefaults(t *testing.T) {
 	if cfg.Region != "Global" || cfg.DeviceType != 1 {
 		t.Errorf("defaults wrong: %+v", cfg)
 	}
-	if cfg.TokenCachePath != ".token.json" {
-		t.Errorf("token cache = %q, want .token.json", cfg.TokenCachePath)
+	if want := defaultTokenCachePath(); cfg.TokenCachePath != want {
+		t.Errorf("token cache = %q, want %q (per-user default)", cfg.TokenCachePath, want)
+	}
+	if !cfg.TokenCacheIsDefault {
+		t.Error("TokenCacheIsDefault = false, want true when no override is set")
+	}
+}
+
+// setUserConfigDir points os.UserConfigDir at dir on every platform so the
+// per-user token-cache default is deterministic in tests. os.UserConfigDir reads
+// %AppData% on Windows, $XDG_CONFIG_HOME (else $HOME/.config) on Linux/BSD, and
+// $HOME/Library/Application Support on macOS — setting all three covers each.
+func setUserConfigDir(t *testing.T, dir string) {
+	t.Helper()
+	t.Setenv("AppData", dir)         // Windows
+	t.Setenv("XDG_CONFIG_HOME", dir) // Linux/BSD
+	t.Setenv("HOME", dir)            // macOS (and Linux fallback)
+}
+
+// TestTokenCacheDefaultNotInWorkingDir is the immutable regression guard for
+// issue #17: with no override, the token cache must NOT resolve inside the
+// current working directory, where a routine `git add -A` would commit the live
+// session token. Restoring the old CWD ".token.json" default fails this.
+func TestTokenCacheDefaultNotInWorkingDir(t *testing.T) {
+	cwd := t.TempDir()
+	t.Chdir(cwd)
+	clearEnv(t)
+	setUserConfigDir(t, t.TempDir()) // a per-user dir distinct from cwd.
+
+	cfg, err := Load(Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !cfg.TokenCacheIsDefault {
+		t.Fatal("TokenCacheIsDefault = false, want true for the built-in default")
+	}
+	if cfg.TokenCachePath == legacyTokenName {
+		t.Fatalf("token cache defaults to %q in the working directory — issue #17 leak", cfg.TokenCachePath)
+	}
+	if !filepath.IsAbs(cfg.TokenCachePath) {
+		t.Fatalf("default token cache %q is not absolute; it must live in a per-user dir, not CWD", cfg.TokenCachePath)
+	}
+	if base := filepath.Base(cfg.TokenCachePath); base != userTokenName {
+		t.Errorf("token cache filename = %q, want %q", base, userTokenName)
+	}
+	if parent := filepath.Base(filepath.Dir(cfg.TokenCachePath)); parent != appUserSubdir {
+		t.Errorf("token cache parent dir = %q, want %q", parent, appUserSubdir)
+	}
+	// Prove it is not nested under the working directory at all.
+	if rel, err := filepath.Rel(cwd, cfg.TokenCachePath); err == nil &&
+		rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		t.Fatalf("default token cache %q resolves inside the working directory %q — issue #17 leak", cfg.TokenCachePath, cwd)
+	}
+}
+
+// TestTokenCacheEnvOverridesDefault: SPEEDIANCE_TOKEN_CACHE wins and is taken
+// verbatim, and such an explicit choice is never flagged as the default (so it
+// never triggers legacy migration).
+func TestTokenCacheEnvOverridesDefault(t *testing.T) {
+	dir := t.TempDir()
+	t.Chdir(dir)
+	clearEnv(t)
+	custom := filepath.Join(dir, "explicit-token.json")
+	t.Setenv(EnvTokenCache, custom)
+
+	cfg, err := Load(Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.TokenCachePath != custom {
+		t.Errorf("token cache = %q, want %q (env override)", cfg.TokenCachePath, custom)
+	}
+	if cfg.TokenCacheIsDefault {
+		t.Error("TokenCacheIsDefault = true for an explicit override; want false")
+	}
+}
+
+// TestTokenCacheConfigKeyHonored is the regression guard for issue #17's
+// secondary bug: token_cache_path in config.json was printed by `config show`
+// but silently ignored by the loader. It must now be applied.
+func TestTokenCacheConfigKeyHonored(t *testing.T) {
+	dir := t.TempDir()
+	t.Chdir(dir)
+	clearEnv(t)
+	want := filepath.Join(dir, "from-config.json")
+	writeConfig(t, dir, `{"token_cache_path":`+strconv.Quote(want)+`}`)
+
+	cfg, err := Load(Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.TokenCachePath != want {
+		t.Errorf("token cache = %q, want %q (token_cache_path config key must be honored)", cfg.TokenCachePath, want)
+	}
+	if cfg.TokenCacheIsDefault {
+		t.Error("TokenCacheIsDefault = true with token_cache_path set; want false")
+	}
+}
+
+// TestTokenCacheEnvBeatsConfigKey: env layer outranks the config-file key, per
+// the global precedence contract (flags > env > .env > file > defaults).
+func TestTokenCacheEnvBeatsConfigKey(t *testing.T) {
+	dir := t.TempDir()
+	t.Chdir(dir)
+	clearEnv(t)
+	fromFile := filepath.Join(dir, "from-file.json")
+	fromEnv := filepath.Join(dir, "from-env.json")
+	writeConfig(t, dir, `{"token_cache_path":`+strconv.Quote(fromFile)+`}`)
+	t.Setenv(EnvTokenCache, fromEnv)
+
+	cfg, err := Load(Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.TokenCachePath != fromEnv {
+		t.Errorf("token cache = %q, want %q (env must beat config key)", cfg.TokenCachePath, fromEnv)
 	}
 }
 

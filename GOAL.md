@@ -208,7 +208,11 @@ two-return `os.LookupEnv` to distinguish set-empty from unset.)
 3. *(enhancement)* else `<os.UserConfigDir>/speediance/config.json` — documented as optional, never
    required. Keep CWD as the default so existing agents/skills are unaffected.
 
-Token cache: `SPEEDIANCE_TOKEN_CACHE` or `.token.json` in CWD by default (same as Python).
+Token cache: `SPEEDIANCE_TOKEN_CACHE` env > `token_cache_path` config key >
+`<os.UserConfigDir>/speediance/token.json` per-user default. (The original Python/Go default
+of `.token.json` in CWD was changed in **issue #17**: a CWD default leaked a live token into
+whatever repo the tool ran from, where a `git add -A` could commit it. An existing legacy
+`.token.json` is migrated to the per-user location on first run so no one is forced to re-login.)
 
 ### Validation / errors
 

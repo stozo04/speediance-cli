@@ -40,6 +40,84 @@ func TestLoadCorruptFileIsNotFatal(t *testing.T) {
 	}
 }
 
+// TestMigrateLegacyMovesToken is the regression guard for issue #17: a token
+// cached in the working-directory legacy path is relocated to the per-user
+// location AND removed from the working directory (so it can't be committed).
+func TestMigrateLegacyMovesToken(t *testing.T) {
+	dir := t.TempDir()
+	legacy := filepath.Join(dir, ".token.json")
+	resolved := filepath.Join(dir, "userdir", "token.json")
+	want := Token{Token: "abc123", UserID: "7"}
+	if err := Save(legacy, want); err != nil {
+		t.Fatal(err)
+	}
+
+	migrated, err := MigrateLegacy(resolved, legacy)
+	if err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+	if !migrated {
+		t.Fatal("migrated = false, want true")
+	}
+	// The credential must no longer sit in the (committable) legacy location.
+	if _, err := os.Stat(legacy); !os.IsNotExist(err) {
+		t.Errorf("legacy token still present after migration (stat err = %v); the leak must be removed", err)
+	}
+	got, ok, err := Load(resolved)
+	if err != nil || !ok || got != want {
+		t.Errorf("relocated token = %+v ok=%v err=%v, want %+v", got, ok, err, want)
+	}
+}
+
+func TestMigrateLegacyNoLegacyFileIsNoop(t *testing.T) {
+	dir := t.TempDir()
+	migrated, err := MigrateLegacy(filepath.Join(dir, "token.json"), filepath.Join(dir, ".token.json"))
+	if err != nil || migrated {
+		t.Errorf("missing legacy file: migrated=%v err=%v, want false,nil", migrated, err)
+	}
+}
+
+// TestMigrateLegacyDoesNotClobberExisting: a token already at the destination is
+// never overwritten, and the legacy file is left untouched in that case.
+func TestMigrateLegacyDoesNotClobberExisting(t *testing.T) {
+	dir := t.TempDir()
+	legacy := filepath.Join(dir, ".token.json")
+	resolved := filepath.Join(dir, "token.json")
+	if err := Save(legacy, Token{Token: "old"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := Save(resolved, Token{Token: "new"}); err != nil {
+		t.Fatal(err)
+	}
+
+	migrated, err := MigrateLegacy(resolved, legacy)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if migrated {
+		t.Error("migrated = true; must not migrate over an existing destination")
+	}
+	got, _, _ := Load(resolved)
+	if got.Token != "new" {
+		t.Errorf("destination clobbered: %+v", got)
+	}
+	if _, err := os.Stat(legacy); err != nil {
+		t.Errorf("legacy file should be left as-is when destination exists: %v", err)
+	}
+}
+
+func TestMigrateLegacySamePathIsNoop(t *testing.T) {
+	dir := t.TempDir()
+	p := filepath.Join(dir, ".token.json")
+	if err := Save(p, Token{Token: "x"}); err != nil {
+		t.Fatal(err)
+	}
+	migrated, err := MigrateLegacy(p, p)
+	if err != nil || migrated {
+		t.Errorf("same path: migrated=%v err=%v, want false,nil", migrated, err)
+	}
+}
+
 func TestSavePermsOwnerOnly(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("Unix permission bits are advisory on Windows")

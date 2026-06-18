@@ -83,7 +83,12 @@ func runCLI(t *testing.T, serverURL string, args ...string) (stdout, stderr stri
 	clearSpeedianceEnv(t)
 	t.Setenv("SPEEDIANCE_EMAIL", "e@example.com")
 	t.Setenv("SPEEDIANCE_PASSWORD", "pw")
-	if err := os.WriteFile(filepath.Join(dir, ".token.json"),
+	// Pin the token cache to this temp dir (an explicit override) so the test
+	// stays hermetic: it neither reads/writes the real per-user cache nor
+	// triggers the legacy-migration path.
+	tokenPath := filepath.Join(dir, ".token.json")
+	t.Setenv("SPEEDIANCE_TOKEN_CACHE", tokenPath)
+	if err := os.WriteFile(tokenPath,
 		[]byte(`{"token":"T","user_id":"1"}`), 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -251,6 +256,9 @@ func TestAuthErrorExitsTwo(t *testing.T) {
 	clearSpeedianceEnv(t)
 	t.Setenv("SPEEDIANCE_EMAIL", "e@example.com")
 	t.Setenv("SPEEDIANCE_PASSWORD", "pw")
+	// Keep the token cache inside the temp dir so the test never touches the real
+	// per-user cache (login fails before writing, but stay hermetic regardless).
+	t.Setenv("SPEEDIANCE_TOKEN_CACHE", filepath.Join(dir, ".token.json"))
 	baseURLOverride = srv.URL
 	t.Cleanup(func() { baseURLOverride = "" })
 

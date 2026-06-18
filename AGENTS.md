@@ -49,7 +49,7 @@ Google/SSO accounts: the user must set a password in the Speediance app once
 Verify it works:
 
 ```bash
-speediance-cli login        # caches a token in .token.json (gitignored, 0600)
+speediance-cli login        # caches a session token (0600) in your OS user-config dir
 ```
 
 You can inspect the resolved configuration any time with `speediance-cli config show`
@@ -120,8 +120,12 @@ per-set detail to store.
 - **Exit codes:** `0` success, `2` auth failure, non-zero for other errors. Check them.
 - **No `doctor`/health command — by design.** To diagnose setup programmatically, read
   `config show --json` (what resolved, where) and run `login` (exit `2` = auth/connectivity
-  failure; it rewrites `.token.json`). Don't go looking for a single health command — chain
+  failure; it rewrites the token cache). Don't go looking for a single health command — chain
   those instead.
+- **Token cache:** the session token is cached in the OS user-config dir by default
+  (`config path` shows the resolved location), **not** the working directory — so running
+  the CLI from another repo can't drop a credential into it. Override with
+  `SPEEDIANCE_TOKEN_CACHE` or the `token_cache_path` config key.
 - **Secrets:** `config.json`, `.token.json`, `.env` are gitignored. Never commit them.
 - **Device:** tested for Gym Monster 1 only; GM2 untested.
 - **Unofficial API:** all endpoints live in `internal/api`; if the Speediance app updates

@@ -31,6 +31,19 @@ func (a *App) apiClient(useCache bool) (*api.Client, *config.Config, error) {
 		a.logger.Warn(w)
 	}
 
+	// Relocate a token cached under the old working-directory default up to the
+	// per-user location (issue #17) before we read or write it. Only the default
+	// path migrates — an explicit SPEEDIANCE_TOKEN_CACHE / token_cache_path is
+	// honored verbatim. Best-effort: a failure just means the next call logs in
+	// fresh, so it never blocks the command.
+	if cfg.TokenCacheIsDefault {
+		if migrated, err := auth.MigrateLegacy(cfg.TokenCachePath, config.LegacyTokenCachePath()); err != nil {
+			a.logger.Warn("token cache migration incomplete", "path", cfg.TokenCachePath, "err", err)
+		} else if migrated {
+			a.logger.Info("relocated token cache out of the working directory", "to", cfg.TokenCachePath)
+		}
+	}
+
 	var tok auth.Token
 	if useCache {
 		t, _, err := auth.Load(cfg.TokenCachePath)

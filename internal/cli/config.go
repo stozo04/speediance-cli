@@ -24,7 +24,7 @@ type configView struct {
 // validConfigKeys are the keys `config set` accepts (the config.json schema).
 var validConfigKeys = map[string]bool{
 	"email": true, "password": true, "region": true,
-	"device_type": true,
+	"device_type": true, "token_cache_path": true,
 }
 
 // newConfigCmd implements `config [show|set|path]` (GOAL.md §9.7), a convenience
@@ -90,7 +90,7 @@ func newConfigSetCmd(app *App) *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			key, value := args[0], args[1]
 			if !validConfigKeys[key] {
-				return withCode(ExitUsage, fmt.Errorf("unknown config key %q (valid: email, password, region, device_type)", key))
+				return withCode(ExitUsage, fmt.Errorf("unknown config key %q (valid: email, password, region, device_type, token_cache_path)", key))
 			}
 			cfg, err := app.resolveConfig()
 			if err != nil {

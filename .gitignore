@@ -3,6 +3,11 @@ config.json
 .token.json
 .env
 
+# Real captured Speediance session JSON (personal workout data — never commit to a
+# public repo). Local-only reference samples of actual API output; see CLAUDE.md
+# "Local reference data". Save new live captures here.
+/REAL-SPEEDIANCE-JSON/
+
 # User plan files (examples live under plans/ but are gitignored per spec).
 /plans/
 

@@ -1,11 +1,10 @@
-// Package workout models Speediance session data and the exact JSON shapes the
-// CLI emits. Field names, types, and order in the output structs are part of the
-// frozen --json contract (GOAL.md §2, §9.2, §9.3) and mirror the Python
-// dataclasses in models.py.
+// Package workout models the Speediance data the CLI emits. The workouts list is
+// a small typed summary (GOAL.md §9.2); the per-session detail is a faithful,
+// lossless passthrough (SessionDetail) — the raw Speediance payloads, unparsed
+// and unaltered — so nothing the server returns is ever silently dropped.
 //
-// Numbers whose int-vs-float form must round-trip exactly (volume, weight,
-// max_hr, completion_rate) are carried as json.Number so we re-emit the server's
-// value verbatim, exactly as Python's json round-trip does.
+// Numbers whose int-vs-float form must round-trip exactly (volume, completion
+// rate, …) are carried as json.Number so we re-emit the server's value verbatim.
 package workout
 
 import (
@@ -17,7 +16,9 @@ import (
 // default (which serializes as "0.0", not "0").
 const zeroFloat = json.Number("0.0")
 
-// Workout is a completed session. Only the subset the CLI needs is modeled.
+// Workout is one row of the completed-session list. Only the subset the
+// `workouts` summary needs is modeled; the full per-session data is fetched
+// separately and emitted verbatim (see SessionDetail).
 type Workout struct {
 	TrainingID  int64
 	Title       string
@@ -27,20 +28,11 @@ type Workout struct {
 	DurationSec int64
 	Calories    int64
 	Volume      json.Number // raw totalCapacity, for verbatim re-emit
-	Completion  json.Number // completionRate, populated by detail fetch
-	Sets        []SetData
-}
-
-// SetData is one performed set within an exercise.
-type SetData struct {
-	ExerciseName string
-	SetIndex     int
-	FinishedReps int
-	TargetReps   int
-	Weight       json.Number // rep weight, falling back to the exercise maxWeight
-	Capacity     json.Number
-	MaxHeartRate json.Number
-	LeftRight    int // 0=both, 1=left, 2=right
+	// SessionType is the raw numeric `type` from the record (1 = Free Lift /
+	// freestyle incl. rowing, 5 = program/Coach). It drives namespace dispatch in
+	// the `today`/`session` commands (program detail lives at different endpoints
+	// than free-lift detail, and trainingId collides across the two namespaces).
+	SessionType int
 }
 
 // rawRecord mirrors a userTrainingDataRecord entry. Pointers distinguish absent
@@ -57,6 +49,7 @@ type rawRecord struct {
 	TrainingTime       *json.Number `json:"trainingTime"`
 	Calorie            *json.Number `json:"calorie"`
 	TotalCapacity      *json.Number `json:"totalCapacity"`
+	Type               *json.Number `json:"type"`
 }
 
 // ParseRecords decodes the userTrainingDataRecord array into Workouts.
@@ -107,6 +100,27 @@ func (r rawRecord) toWorkout() Workout {
 		DurationSec: numInt(r.TrainingTime),
 		Calories:    numInt(r.Calorie),
 		Volume:      vol,
+		SessionType: int(numInt(r.Type)),
+	}
+}
+
+// KindForType maps the raw numeric session `type` to the stable `kind` label the
+// CLI emits ("program" | "free" | ""). Observed across a year of real sessions:
+// type 5 is the program/Coach namespace (cttTrainingInfo[Detail]); every other
+// positive type — 1 (freestyle Free Lift), 2 (guided programs like
+// "Ultimate Sculpt & Burn"), 7 (guided cardio like "Aerobic Rowing") — is served
+// by the free namespace (freeTraining[Detail]). A non-positive/absent type yields
+// "". This is the digest hint used by `workouts`; `session`/`today` confirm the
+// kind by *which endpoint actually answered*, so they stay correct even if a
+// future type breaks this mapping.
+func KindForType(sessionType int) string {
+	switch {
+	case sessionType == 5:
+		return "program"
+	case sessionType >= 1:
+		return "free"
+	default:
+		return ""
 	}
 }
 
@@ -130,7 +144,10 @@ func (w Workout) Date() *string {
 	return &s
 }
 
-// Summary is the workouts --json row (GOAL.md §9.2). Field order matches Python.
+// Summary is the workouts --json row (GOAL.md §9.2). `kind` ("program" | "free" |
+// "") is derived from the raw numeric session type so an agent can pick or filter
+// sessions without knowing the endpoint topology; `session <id>`/`today` use the
+// same vocabulary.
 type Summary struct {
 	TrainingID   int64       `json:"training_id"`
 	Title        string      `json:"title"`
@@ -139,6 +156,7 @@ type Summary struct {
 	Calories     int64       `json:"calories"`
 	Volume       json.Number `json:"volume"`
 	Type         string      `json:"type"`
+	Kind         string      `json:"kind"`
 }
 
 // Summary builds the workouts --json row for this workout.
@@ -151,143 +169,32 @@ func (w Workout) Summary() Summary {
 		Calories:     w.Calories,
 		Volume:       w.Volume,
 		Type:         w.WorkoutType,
+		Kind:         KindForType(w.SessionType),
 	}
 }
 
-// --- session detail (GOAL.md §9.3) ---
+// --- session detail: faithful, lossless passthrough (GOAL.md §9.3) ---
 
-// SetOut is one set in the session --json output.
-type SetOut struct {
-	Set       int         `json:"set"`
-	Reps      int         `json:"reps"`
-	TargetRep int         `json:"target_reps"`
-	Weight    json.Number `json:"weight"`
-	MaxHR     json.Number `json:"max_hr"`
-	LeftRight int         `json:"left_right"`
-}
-
-// ExerciseOut groups sets under an exercise name.
-type ExerciseOut struct {
-	Name string   `json:"name"`
-	Sets []SetOut `json:"sets"`
-}
-
-// Session is the full session --json document.
-type Session struct {
-	TrainingID     int64         `json:"training_id"`
-	CompletionRate json.Number   `json:"completion_rate"`
-	Exercises      []ExerciseOut `json:"exercises"`
-}
-
-// rawExercise mirrors a cttTrainingInfoDetail entry.
-type rawExercise struct {
-	ActionLibraryName string      `json:"actionLibraryName"`
-	MaxWeight         json.Number `json:"maxWeight"`
-	FinishedReps      []rawRep    `json:"finishedReps"`
-}
-
-type rawRep struct {
-	FinishedCount int          `json:"finishedCount"`
-	TargetCount   int          `json:"targetCount"`
-	Weight        *json.Number `json:"weight"`
-	Capacity      *json.Number `json:"capacity"`
-	MaxHeartRate  *json.Number `json:"maxHeartRate"`
-	LeftRight     int          `json:"leftRight"`
-}
-
-// SetCompletionRate decodes the cttTrainingInfo payload's completionRate,
-// defaulting to "0.0" (GOAL.md §9.3). It mirrors `data.get("completionRate", 0.0)`.
-func (w *Workout) SetCompletionRate(infoData json.RawMessage) {
-	w.Completion = zeroFloat
-	if len(infoData) == 0 {
-		return
-	}
-	var d struct {
-		CompletionRate *json.Number `json:"completionRate"`
-	}
-	if err := json.Unmarshal(infoData, &d); err == nil && d.CompletionRate != nil {
-		w.Completion = *d.CompletionRate
-	}
-}
-
-// AddDetailSets decodes a cttTrainingInfoDetail list and appends its sets,
-// grouping by exercise. Weight falls back to the exercise maxWeight when a rep
-// omits it (Python `rep.get("weight", max_weight)`).
-func (w *Workout) AddDetailSets(detailData json.RawMessage) error {
-	if len(detailData) == 0 {
-		return nil
-	}
-	var exs []rawExercise
-	if err := json.Unmarshal(detailData, &exs); err != nil {
-		return err
-	}
-	for _, ex := range exs {
-		maxWeight := ex.MaxWeight
-		if maxWeight == "" {
-			maxWeight = zeroFloat
-		}
-		for i, rep := range ex.FinishedReps {
-			weight := maxWeight
-			if rep.Weight != nil {
-				weight = *rep.Weight
-			}
-			w.Sets = append(w.Sets, SetData{
-				ExerciseName: ex.ActionLibraryName,
-				SetIndex:     i + 1,
-				FinishedReps: rep.FinishedCount,
-				TargetReps:   rep.TargetCount,
-				Weight:       weight,
-				Capacity:     numOrZero(rep.Capacity),
-				MaxHeartRate: numOrZero(rep.MaxHeartRate),
-				LeftRight:    rep.LeftRight,
-			})
-		}
-	}
-	return nil
-}
-
-// GroupedExercises returns the workout's sets grouped by exercise name in
-// first-seen order — the equivalent of the Python Workout.exercises() dict. Used
-// to build the session output.
-func (w Workout) GroupedExercises() (order []string, byName map[string][]SetData) {
-	byName = map[string][]SetData{}
-	for _, s := range w.Sets {
-		if _, ok := byName[s.ExerciseName]; !ok {
-			order = append(order, s.ExerciseName)
-		}
-		byName[s.ExerciseName] = append(byName[s.ExerciseName], s)
-	}
-	return order, byName
-}
-
-// SessionOutput builds the session --json document, grouping sets by exercise
-// name in first-seen order (GOAL.md §9.3).
-func (w Workout) SessionOutput() Session {
-	comp := w.Completion
-	if comp == "" {
-		comp = zeroFloat
-	}
-	order, byName := w.GroupedExercises()
-	exercises := make([]ExerciseOut, 0, len(order))
-	for _, name := range order {
-		sets := make([]SetOut, 0, len(byName[name]))
-		for _, s := range byName[name] {
-			sets = append(sets, SetOut{
-				Set:       s.SetIndex,
-				Reps:      s.FinishedReps,
-				TargetRep: s.TargetReps,
-				Weight:    s.Weight,
-				MaxHR:     s.MaxHeartRate,
-				LeftRight: s.LeftRight,
-			})
-		}
-		exercises = append(exercises, ExerciseOut{Name: name, Sets: sets})
-	}
-	return Session{
-		TrainingID:     w.TrainingID,
-		CompletionRate: comp,
-		Exercises:      exercises,
-	}
+// SessionDetail is the `session <id> --json` (and `today`) document. The tool
+// resolves which kind of session this is and emits a uniform shape so a
+// type-agnostic agent always reads the same two payload fields:
+//
+//	kind="program" → info=cttTrainingInfo data,  detail=cttTrainingInfoDetail data (per-rep arrays)
+//	kind="free"    → info=freeTraining data,      detail=freeTrainingDetail data (usually [])
+//	kind=""        → neither namespace had data;  info and detail are null
+//
+// Info and Detail are the *verbatim* Speediance payloads (transport envelope
+// unwrapped, payload untouched) so every field — modeled or not, now or after a
+// future app update — flows straight through. The CLI parses, renames, reshapes,
+// summarizes, and fabricates nothing in the payloads; `kind` is the only derived
+// field and reflects which namespace answered (a routing fact, not an
+// interpretation of the data). A payload Speediance does not return is emitted as
+// JSON null, never back-filled. training_id echoes the requested id.
+type SessionDetail struct {
+	TrainingID int64           `json:"training_id"`
+	Kind       string          `json:"kind"`
+	Info       json.RawMessage `json:"info"`
+	Detail     json.RawMessage `json:"detail"`
 }
 
 // numInt parses an optional json.Number to int64, treating absent/invalid as 0.
@@ -302,12 +209,4 @@ func numInt(n *json.Number) int64 {
 		return int64(f)
 	}
 	return 0
-}
-
-// numOrZero returns the pointed-to number, or "0.0" when absent.
-func numOrZero(n *json.Number) json.Number {
-	if n == nil {
-		return zeroFloat
-	}
-	return *n
 }

@@ -58,15 +58,46 @@ You can inspect the resolved configuration any time with `speediance-cli config 
 ## 3. Read workouts
 
 ```bash
-# recent completed sessions (summaries)
+# every session today, fully resolved — the one-shot entry point (no type knowledge needed)
+speediance-cli today --json
+speediance-cli today --date 2026-06-17 --json   # today | yesterday | YYYY-MM-DD
+
+# recent completed sessions (a digest, for picking); each row carries `kind`
 speediance-cli workouts --days 7 --json
 
-# full per-set detail for one session (reps, weight, HR per set)
+# full, verbatim detail for one session; auto-detects program/free/rowing
 speediance-cli session <training_id> --json
 ```
 
-Note: freestyle **"Free Lift"** sessions return only totals — no per-set detail.
-Sessions run from a **program** (see below) return everything.
+**The tool auto-detects the session type — the agent stays dumb.** When the client
+says they did a workout, call `today`: it finds the day's session(s) and returns
+each fully resolved, without you knowing whether it was a program, free weights, or
+rowing. `session <id>` does the same for one id (probes the program namespace, then
+free).
+
+Output is a uniform **`{training_id, kind, info, detail}`** (`today` returns an
+array of these). `kind` is `"program"`, `"free"`, or `""`:
+
+- `kind:"program"` → `info` = `cttTrainingInfo` (incl. `completionRate`); `detail` =
+  per-exercise, per-rep arrays.
+- `kind:"free"` → the free *namespace* (not "freestyle"): `info` = `freeTraining`
+  totals (`totalCapacity`, `totalEnergy`, `totalDistance` for rowing/ski; `name` for
+  guided). `detail` is `[]` for a freestyle Free Lift, but **populated** for a
+  guided session — e.g. *Aerobic Rowing* fills it with per-interval
+  `finishedReps` (`distance`/`pace`/`spm`) + per-stroke traces. Read `detail`;
+  don't assume `free` ⇒ empty. (`info.name` present ⇒ a guided session.)
+
+`info`/`detail` are the **verbatim** Speediance payloads — original field names and
+values (`leftWatts`, `forceControlScore`, `weights`, `leftBreakTimes`, …). The CLI
+never renames, reshapes, computes, or fabricates; there is no synthesized per-set
+weight and no `--telemetry` flag. Absence is preserved (omitted fields stay
+omitted). `info` is `object | null` and `detail` is `array | null` (never
+normalized) — treat both `null` and `[]` as "no rows". Values are **unvalidated**:
+Speediance's fields aren't always self-consistent, so derive what you need from raw
+values (e.g. a rowing split = `distance / time`, not the per-interval `pace` field,
+which is instantaneous) rather than trusting one field. A `trainingId` can mean
+different sessions across namespaces; auto-detect prefers program, and
+`--free`/`--program` force a namespace when an id is ambiguous.
 
 ## 4. Create a workout (so it appears on the machine)
 
@@ -139,7 +170,8 @@ per-set detail to store.
 |---|---|---|
 | `login` | authenticate, cache token | — |
 | `workouts --days N` | list recent sessions | yes |
-| `session <id>` | per-set detail for one session | yes |
+| `today [--date D]` | every session on a day, auto-resolved to type-correct detail | yes |
+| `session <id> [--free\|--program]` | full, verbatim detail for one session; auto-detects type | yes |
 | `library` | dump exercise catalog to `library.json` | yes |
 | `push <plan.json>` | create a program (`--dry-run` to preview) | yes |
 | `config show\|set\|path` | manage `config.json` | yes (`show`) |

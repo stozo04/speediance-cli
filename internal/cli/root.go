@@ -74,6 +74,7 @@ func addCommands(app *App, root *cobra.Command) {
 		newLoginCmd(app),
 		newWorkoutsCmd(app),
 		newSessionCmd(app),
+		newTodayCmd(app),
 		newLibraryCmd(app),
 		newPushCmd(app),
 		newConfigCmd(app),

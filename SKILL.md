@@ -112,11 +112,20 @@ ignored, so a stray `.env` can never inject unrelated variables into the process
 ### Read workouts
 
 ```bash
-speediance-cli workouts --days 7 --json      # recent sessions (summaries)
+speediance-cli today --json                  # every session today, fully resolved (any type)
+speediance-cli today --date 2026-06-17 --json # …or a specific day (today | yesterday | YYYY-MM-DD)
+speediance-cli workouts --days 7 --json      # recent sessions (summaries, for picking)
 speediance-cli session <training_id> --json  # full, verbatim detail for one session
 ```
 
-Sample `workouts --json` output:
+**`today` is the one-shot, agent-friendly entry point.** When the client just says
+"I did a workout," call `today` — you do **not** need to know whether it was a
+program, free weights, or a rowing/ski session. The tool finds the day's session(s)
+and returns each one fully resolved, as an array of the same `{training_id, kind,
+info, detail}` shape that `session` emits. (`kind` is `"program"`, `"free"`, or
+`""`.)
+
+Sample `workouts --json` output (a digest for picking; `kind` lets you filter):
 
 ```json
 [
@@ -127,23 +136,36 @@ Sample `workouts --json` output:
     "duration_secs": 2700,
     "calories": 320,
     "volume": 4200.0,
-    "type": "Strength"
+    "type": "Strength",
+    "kind": "program"
   }
 ]
 ```
 
-`session <id> --json` is a **faithful, complete passthrough** of the session's
-Speediance data — not a summary. A session spans two Speediance endpoints, and the
-CLI emits **both payloads verbatim**: the field names, nesting, and values are
-exactly what Speediance returned (`leftWatts`, `forceControlScore`, `weights`,
-`leftBreakTimes`, …). The CLI does not rename, reshape, compute, or fill gaps —
-consumers decide shape, derivation, and storage.
+`session <id> --json` is **autonomous and a faithful, complete passthrough**. Given
+only an id it figures out what the session was — a program/Coach session, free
+weights, or a rowing/ski free session — and emits the verbatim Speediance payloads
+under a uniform shape. The field names, nesting, and values are exactly what
+Speediance returned (`leftWatts`, `forceControlScore`, `weights`, `leftBreakTimes`,
+`totalDistance`, …); the CLI does not rename, reshape, compute, or fill gaps.
+
+`kind` tells you which namespace answered, so a type-agnostic consumer always reads
+the same two fields:
+
+| `kind` | `info` | `detail` |
+|---|---|---|
+| `"program"` | `cttTrainingInfo` payload (incl. `completionRate`) | `cttTrainingInfoDetail` — per-exercise, per-rep arrays |
+| `"free"` | `freeTraining` payload (totals: `totalCapacity`, `totalEnergy`, `totalDistance` for rowing/ski) | `freeTrainingDetail` (usually `[]` — free lifts record no per-rep breakdown) |
+| `""` | `null` | `null` (no session found in either namespace) |
+
+A program session:
 
 ```json
 {
   "training_id": 940759,
+  "kind": "program",
   "info": {
-    "completionRate": 0.95
+    "completionRate": 100.0
     // … the verbatim GET /app/trainingInfo/cttTrainingInfo/<id> data payload
   },
   "detail": [
@@ -172,18 +194,24 @@ consumers decide shape, derivation, and storage.
 
 Notes for consumers:
 
-- **`weight` is never invented.** There is no synthesized per-set weight. The real
-  per-rep weights are in `trainingInfoDetail.weights[]` (already per attachment, so
-  a single-handle average is just their mean); a mid-set drop (e.g. `15×5 → 10×9`)
-  is therefore visible. Average or summarize as you see fit.
-- **Absence is preserved.** A field or array Speediance omits for a set is omitted
-  in the output too (e.g. a sparse capture with only `weights`); a session with no
-  detail emits `"detail": null`.
+- **Auto-detection is built in** — no caller knowledge of the session type is
+  needed. `session`/`today` probe the program namespace, then the free namespace.
+- **`weight` is never invented.** There is no synthesized per-set weight. For a
+  program, the real per-rep weights are in `trainingInfoDetail.weights[]` (already
+  per attachment, so a single-handle average is just their mean); a mid-set drop
+  (e.g. `15×5 → 10×9`) is therefore visible. Average or summarize as you see fit.
+- **Free lifts have no per-rep breakdown.** A `kind: "free"` session (free weights,
+  rowing, ski) exposes session-level totals in `info` (`totalCapacity`,
+  `totalEnergy`, `totalDistance`, `trainingCount`, …) and an empty `detail` — that
+  is all Speediance records for them.
+- **Absence is preserved.** A field or array Speediance omits is omitted in the
+  output too (e.g. a sparse capture with only `weights`); nothing is back-filled.
 - **No flag unlocks data** — the endpoints return it, so the CLI returns it. There
   is no `--telemetry`.
 
-> "Free Lift" (freestyle) sessions return a null `detail` (no per-set data);
-> `info` is still emitted. Sessions started from a **program** return full data.
+> A `trainingId` can identify *different* sessions in the program vs. free
+> namespaces. Auto-detection prefers the program match; pass `--program` or
+> `--free` to `session` to force a namespace when an id is ambiguous.
 
 ### Browse the exercise catalog
 
@@ -252,7 +280,8 @@ layout.
 |---|---|---|
 | `login` | Authenticate and cache a session token | — |
 | `workouts [--days N]` | List recent completed sessions | ✓ |
-| `session <training_id>` | Full, verbatim Speediance detail for one session (both endpoints, no derivation) | ✓ |
+| `today [--date D]` | Every session on a day, auto-resolved to type-correct detail (the one-shot entry point) | ✓ |
+| `session <training_id> [--free\|--program]` | Full, verbatim detail for one session; auto-detects program/free/rowing | ✓ |
 | `library [--search X] [--out FILE]` | Dump or search exercise catalog | ✓ |
 | `push <plan.json> [--dry-run]` | Create a training program on the account | ✓ |
 | `config show\|set\|path` | Manage `config.json` | ✓ (`show`) |

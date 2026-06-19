@@ -169,8 +169,9 @@ speediance-cli/
 | Command | Status | `--json` | Notes |
 |---|---|---|---|
 | `login` | port | — | authenticate, cache token |
-| `workouts [--days N]` | port | yes | list recent completed sessions |
-| `session <training_id>` | port | yes | per-set detail for one session |
+| `workouts [--days N]` | port | yes | list recent completed sessions (each row carries `kind`) |
+| `session <training_id> [--free\|--program]` | port | yes | full detail for one session; auto-detects program/free/rowing |
+| `today [--date D]` | **new** | yes | every session on a day, auto-resolved to type-correct detail |
 | `library [--search X] [--out FILE]` | port | yes | dump/search exercise catalog |
 | `push <plan.json> [--dry-run]` | port | yes | create program (dry-run previews payload) |
 | `sync [--date D] [--days N] [--weeks-dir DIR]` | port | — | optional Markdown sheet write |
@@ -332,36 +333,41 @@ matches Python's `json.dumps(indent=2)`.
 - stdout (human): `Found N session(s)…` then `- <date>  <title>  -  <min> min, <kcal> kcal  (id <id>)`;
   empty → `No completed workouts in the last N day(s).`
 
-### 9.3 `session <training_id> [--json]`
-**Faithful, lossless passthrough (issue #23, refined).** A session is a dumb,
-complete dump of the Speediance data — the CLI must not interpret, summarize,
-reshape, rename, compute, or fabricate. It fetches **both** session endpoints and
-emits each endpoint's `data` payload **verbatim** (transport envelope unwrapped,
-payload untouched) so any field — modeled or not, present today or added by a
-future app update — flows straight through. This supersedes the earlier
-typed/derived design (a `--telemetry` flag, `reps_detail` reshape, snake_case
-renames, and a synthesized per-set `weight`/`weight_source`), all removed.
-- `FetchSessionDetail`: GET `/app/trainingInfo/cttTrainingInfo/<id>` (session-level,
-  incl. `completionRate`) and GET `/app/trainingInfo/cttTrainingInfoDetail/<id>`
-  (per-exercise, per-rep arrays). A non-zero API code or empty body for either leaves
-  that payload nil → emitted as JSON `null` (absence preserved, never fabricated).
-- **No derived fields.** There is no synthesized per-set weight and no maxWeight
-  fallback. The real per-rep weights live in `trainingInfoDetail.weights[]` (already
-  per attachment); consumers average if they want a single number.
-- **stdout `--json`** (a small structural wrapper around two verbatim payloads;
-  `training_id` echoes the requested id):
+### 9.3 `session <training_id> [--json] [--free|--program]` + `today [--date D] [--json]`
+**Autonomous, faithful, lossless passthrough (issue #23, refined).** A session is a
+dumb, complete dump of the Speediance data — the CLI must not interpret, summarize,
+reshape, rename, compute, or fabricate. But a session may live in either of two
+namespaces, and the tool resolves which **itself** so a caller never needs to know
+the type. This supersedes the earlier typed/derived design (a `--telemetry` flag,
+`reps_detail` reshape, snake_case renames, synthesized `weight`/`weight_source`),
+all removed.
+- **Two namespaces, auto-dispatched.** Program/Coach detail: GET
+  `cttTrainingInfo/<id>` + `cttTrainingInfoDetail/<id>`. Free-lift detail (freestyle
+  weights, **rowing/ski**): GET `freeTraining/<id>` + `freeTrainingDetail/<id>`.
+  `ResolveSession` probes program first, falls back to free, and reports which
+  answered via `kind`. **A `trainingId` collides across namespaces** (the same number
+  is unrelated sessions in each), so `--program`/`--free` force one namespace, and
+  `today` (which has the authoritative numeric `type` from the list) dispatches
+  collision-free.
+- **Uniform shape** so a type-agnostic agent reads the same fields regardless:
   ```json
-  {"training_id": 0,
-   "info":   { /* verbatim cttTrainingInfo data, incl. completionRate */ },
-   "detail": [ /* verbatim cttTrainingInfoDetail data: actionLibraryName, maxWeight,
-                  forceControlScore, finishedReps[].trainingInfoDetail.{weights,
-                  leftWatts,rightWatts,leftBreakTimes,…} — original names & values */ ]}
+  {"training_id": 0, "kind": "program",
+   "info":   { /* verbatim cttTrainingInfo data (program) OR freeTraining data (free) */ },
+   "detail": [ /* verbatim cttTrainingInfoDetail (program) OR freeTrainingDetail (free, usually []) */ ]}
   ```
-- **Edge:** "Free Lift" / freestyle sessions return a null `detail` (`"detail": null`);
-  `info` is still emitted. Human mode lists exercise names (display-only) and prints
-  the "no per-set detail (freestyle…)" message when `detail` is empty.
-- **Flags policy:** only scope/selection flags (`<id>`, `--config`); no flag may
-  reshape, derive, summarize, or filter a record's content.
+  `kind` ∈ {`"program"`,`"free"`,`""`}; it reflects which namespace answered (a
+  routing fact, not data interpretation). `info`/`detail` are the endpoints' `data`
+  payloads **verbatim**; a missing one is JSON `null` (absence preserved, never
+  fabricated). No derived fields — the real per-rep weights live in
+  `trainingInfoDetail.weights[]`; consumers average if they want a single number.
+- **`today`** is the one-shot date entry point: it lists the day's records
+  (`--date today|yesterday|YYYY-MM-DD`), reads each one's numeric `type` (collision-
+  free), and returns an **array** of the same `{training_id, kind, info, detail}`.
+- **`workouts`** rows gain `kind` (mapped from the numeric `type`: 5→program,
+  1→free, else `""`) for filtering.
+- **Flags policy:** only scope/selection flags — `<id>`, `--date`, `--free`,
+  `--program`, `--config`. No flag may reshape, derive, summarize, or filter a
+  record's *content*; `--free`/`--program` only *select* the namespace.
 
 ### 9.4 `library [--search X] [--out FILE] [--json]`  (default `--out library.json`)
 - `fetch_library(device_type)`:

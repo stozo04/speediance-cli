@@ -28,6 +28,11 @@ type Workout struct {
 	DurationSec int64
 	Calories    int64
 	Volume      json.Number // raw totalCapacity, for verbatim re-emit
+	// SessionType is the raw numeric `type` from the record (1 = Free Lift /
+	// freestyle incl. rowing, 5 = program/Coach). It drives namespace dispatch in
+	// the `today`/`session` commands (program detail lives at different endpoints
+	// than free-lift detail, and trainingId collides across the two namespaces).
+	SessionType int
 }
 
 // rawRecord mirrors a userTrainingDataRecord entry. Pointers distinguish absent
@@ -44,6 +49,7 @@ type rawRecord struct {
 	TrainingTime       *json.Number `json:"trainingTime"`
 	Calorie            *json.Number `json:"calorie"`
 	TotalCapacity      *json.Number `json:"totalCapacity"`
+	Type               *json.Number `json:"type"`
 }
 
 // ParseRecords decodes the userTrainingDataRecord array into Workouts.
@@ -94,6 +100,23 @@ func (r rawRecord) toWorkout() Workout {
 		DurationSec: numInt(r.TrainingTime),
 		Calories:    numInt(r.Calorie),
 		Volume:      vol,
+		SessionType: int(numInt(r.Type)),
+	}
+}
+
+// KindForType maps the raw numeric session `type` to the stable `kind` label the
+// CLI emits ("program" | "free" | ""). It is intentionally conservative: only the
+// two observed values are mapped, and any other/unknown type yields "" rather than
+// a fabricated label — the autonomous `session` resolver still finds such a
+// session by probing both namespaces.
+func KindForType(sessionType int) string {
+	switch sessionType {
+	case 5:
+		return "program"
+	case 1:
+		return "free"
+	default:
+		return ""
 	}
 }
 
@@ -117,7 +140,10 @@ func (w Workout) Date() *string {
 	return &s
 }
 
-// Summary is the workouts --json row (GOAL.md §9.2). Field order matches Python.
+// Summary is the workouts --json row (GOAL.md §9.2). `kind` ("program" | "free" |
+// "") is derived from the raw numeric session type so an agent can pick or filter
+// sessions without knowing the endpoint topology; `session <id>`/`today` use the
+// same vocabulary.
 type Summary struct {
 	TrainingID   int64       `json:"training_id"`
 	Title        string      `json:"title"`
@@ -126,6 +152,7 @@ type Summary struct {
 	Calories     int64       `json:"calories"`
 	Volume       json.Number `json:"volume"`
 	Type         string      `json:"type"`
+	Kind         string      `json:"kind"`
 }
 
 // Summary builds the workouts --json row for this workout.
@@ -138,27 +165,30 @@ func (w Workout) Summary() Summary {
 		Calories:     w.Calories,
 		Volume:       w.Volume,
 		Type:         w.WorkoutType,
+		Kind:         KindForType(w.SessionType),
 	}
 }
 
 // --- session detail: faithful, lossless passthrough (GOAL.md §9.3) ---
 
-// SessionDetail is the `session <id> --json` document. A session spans two
-// Speediance endpoints; this carries each endpoint's *verbatim* data payload
-// (the transport envelope unwrapped, the payload itself untouched) so every
-// field — modeled or not, present today or added by a future app update — flows
-// straight through. The CLI does not parse, rename, reshape, summarize, or
-// derive anything here; consumers decide shape, derivation, and storage.
+// SessionDetail is the `session <id> --json` (and `today`) document. The tool
+// resolves which kind of session this is and emits a uniform shape so a
+// type-agnostic agent always reads the same two payload fields:
 //
-//	info   = GET /app/trainingInfo/cttTrainingInfo/<id>        (session-level, incl. completionRate)
-//	detail = GET /app/trainingInfo/cttTrainingInfoDetail/<id>  (per-exercise, per-rep arrays)
+//	kind="program" → info=cttTrainingInfo data,  detail=cttTrainingInfoDetail data (per-rep arrays)
+//	kind="free"    → info=freeTraining data,      detail=freeTrainingDetail data (usually [])
+//	kind=""        → neither namespace had data;  info and detail are null
 //
-// A payload Speediance does not return is emitted as JSON null — never
-// fabricated, never back-filled (e.g. a "Free Lift" freestyle session yields a
-// null detail). training_id echoes the requested id — the only added field, a
-// stable correlation key for the caller, derived from nothing in the payloads.
+// Info and Detail are the *verbatim* Speediance payloads (transport envelope
+// unwrapped, payload untouched) so every field — modeled or not, now or after a
+// future app update — flows straight through. The CLI parses, renames, reshapes,
+// summarizes, and fabricates nothing in the payloads; `kind` is the only derived
+// field and reflects which namespace answered (a routing fact, not an
+// interpretation of the data). A payload Speediance does not return is emitted as
+// JSON null, never back-filled. training_id echoes the requested id.
 type SessionDetail struct {
 	TrainingID int64           `json:"training_id"`
+	Kind       string          `json:"kind"`
 	Info       json.RawMessage `json:"info"`
 	Detail     json.RawMessage `json:"detail"`
 }

@@ -181,7 +181,7 @@ func TestSessionDetailNilPayloadsAreNull(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got, want := string(b), `{"training_id":7,"info":null,"detail":null}`; got != want {
+	if got, want := string(b), `{"training_id":7,"kind":"","info":null,"detail":null}`; got != want {
 		t.Errorf("nil payloads:\n got %s\nwant %s", got, want)
 	}
 }

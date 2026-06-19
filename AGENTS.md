@@ -61,22 +61,21 @@ You can inspect the resolved configuration any time with `speediance-cli config 
 # recent completed sessions (summaries)
 speediance-cli workouts --days 7 --json
 
-# per-set detail for one session (reps, actual weight, capacity, HR per set)
+# full, verbatim Speediance detail for one session (both endpoints, no derivation)
 speediance-cli session <training_id> --json
-
-# + real per-rep telemetry (power, ROM, tempo) and per-exercise form scores
-speediance-cli session <training_id> --json --telemetry
 ```
 
-`weight` is the load **actually performed**, not the planned weight. A
-`weight_source` field tags it: `"actual"` (API gave a per-rep weight),
-`"derived_avg"` (computed from the real per-rep telemetry when the API leaves it
-null — never the planned max weight), or `"unavailable"` (`0.0`). `capacity` is
-always emitted; `--telemetry` adds the per-rep `weights`/`watts`/amplitude arrays
-and form scores.
+`session --json` is a **faithful passthrough**, not a summary: it fetches both
+Speediance session endpoints and emits their raw data payloads under
+`{training_id, info, detail}` with the **original field names and values**
+(`leftWatts`, `forceControlScore`, `weights`, `leftBreakTimes`, …). The CLI never
+renames, reshapes, computes, or fabricates — there is no synthesized per-set
+weight (the real per-rep `weights[]` are right there to average if you want one)
+and no `--telemetry` flag. Absence is preserved: fields Speediance omits are
+omitted, and a session with no detail emits `"detail": null`.
 
-Note: freestyle **"Free Lift"** sessions return only totals — no per-set detail.
-Sessions run from a **program** (see below) return everything.
+Note: freestyle **"Free Lift"** sessions emit a null `detail` (no per-set data);
+`info` is still emitted. Sessions run from a **program** (see below) return everything.
 
 ## 4. Create a workout (so it appears on the machine)
 
@@ -149,7 +148,7 @@ per-set detail to store.
 |---|---|---|
 | `login` | authenticate, cache token | — |
 | `workouts --days N` | list recent sessions | yes |
-| `session <id> [--telemetry]` | per-set detail; `--telemetry` adds per-rep telemetry + form scores | yes |
+| `session <id>` | full, verbatim Speediance detail for one session (both endpoints) | yes |
 | `library` | dump exercise catalog to `library.json` | yes |
 | `push <plan.json>` | create a program (`--dry-run` to preview) | yes |
 | `config show\|set\|path` | manage `config.json` | yes (`show`) |

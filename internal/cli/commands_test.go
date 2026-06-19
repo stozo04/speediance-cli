@@ -167,29 +167,42 @@ func TestSessionJSON(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// Faithful passthrough: {training_id, info, detail} carrying both endpoints'
+	// raw payloads verbatim — no renaming, no derived fields.
 	var doc struct {
-		TrainingID     int             `json:"training_id"`
-		CompletionRate json.RawMessage `json:"completion_rate"`
-		Exercises      []struct {
-			Name string `json:"name"`
-			Sets []struct {
-				Set       int             `json:"set"`
-				Weight    json.RawMessage `json:"weight"`
-				LeftRight int             `json:"left_right"`
-			} `json:"sets"`
-		} `json:"exercises"`
+		TrainingID int             `json:"training_id"`
+		Info       json.RawMessage `json:"info"`
+		Detail     []struct {
+			ActionLibraryName string `json:"actionLibraryName"`
+			FinishedReps      []struct {
+				Weight       json.RawMessage `json:"weight"`
+				MaxHeartRate json.RawMessage `json:"maxHeartRate"`
+			} `json:"finishedReps"`
+		} `json:"detail"`
 	}
 	if err := json.Unmarshal([]byte(out), &doc); err != nil {
 		t.Fatalf("bad json: %v\n%s", err, out)
 	}
-	if doc.TrainingID != 123 || string(doc.CompletionRate) != "0.95" {
-		t.Errorf("session header wrong: %+v", doc)
+	if doc.TrainingID != 123 {
+		t.Errorf("training_id = %d, want 123", doc.TrainingID)
 	}
-	if len(doc.Exercises) != 1 || doc.Exercises[0].Name != "Row" {
-		t.Fatalf("exercises wrong: %+v", doc.Exercises)
+	// The session-level info payload is carried through verbatim (incl. completionRate).
+	if !strings.Contains(string(doc.Info), `"completionRate": 0.95`) {
+		t.Errorf("info not passed through verbatim: %s", doc.Info)
 	}
-	if string(doc.Exercises[0].Sets[0].Weight) != "20.0" {
-		t.Errorf("weight = %s, want 20.0", doc.Exercises[0].Sets[0].Weight)
+	if len(doc.Detail) != 1 || doc.Detail[0].ActionLibraryName != "Row" {
+		t.Fatalf("detail wrong: %+v", doc.Detail)
+	}
+	// Per-rep fields are emitted with their original Speediance names and values.
+	rep := doc.Detail[0].FinishedReps[0]
+	if string(rep.Weight) != "20.0" || string(rep.MaxHeartRate) != "148" {
+		t.Errorf("rep not verbatim: weight=%s maxHeartRate=%s", rep.Weight, rep.MaxHeartRate)
+	}
+	// None of the renamed / derived fields from the superseded design.
+	for _, banned := range []string{"completion_rate", `"exercises"`, "weight_source", "reps_detail", "max_hr"} {
+		if strings.Contains(out, banned) {
+			t.Errorf("output contains forbidden field %q:\n%s", banned, out)
+		}
 	}
 }
 
@@ -377,7 +390,7 @@ func TestWorkoutsEmptyJSONIsArray(t *testing.T) {
 	}
 }
 
-func TestSessionFreestyleEmptyExercises(t *testing.T) {
+func TestSessionFreestyleNullDetail(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if strings.Contains(r.URL.Path, "cttTrainingInfoDetail") {
 			// Free Lift sessions return no per-set list.
@@ -391,8 +404,13 @@ func TestSessionFreestyleEmptyExercises(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(out, `"exercises": []`) {
-		t.Errorf("freestyle session should have empty exercises array:\n%s", out)
+	// Absence preserved faithfully: a null detail payload stays null, not [].
+	if !strings.Contains(out, `"detail": null`) {
+		t.Errorf("freestyle session should emit a null detail:\n%s", out)
+	}
+	// The session-level info is still emitted (both endpoints are fetched).
+	if !strings.Contains(out, `"completionRate": 0`) {
+		t.Errorf("freestyle session should still emit info:\n%s", out)
 	}
 	// Human mode prints the freestyle hint.
 	hout, _, err := runCLI(t, srv.URL, "session", "55")
@@ -404,122 +422,108 @@ func TestSessionFreestyleEmptyExercises(t *testing.T) {
 	}
 }
 
-// sessionTelemetryServer serves a completed-program session whose per-rep weight
-// is null but whose nested trainingInfoDetail carries the real telemetry — the
-// issue #23 shape (a 15x5 -> 10x9 hammer-curl drop set).
-func sessionTelemetryServer(t *testing.T) *httptest.Server {
+// sessionDetailServer serves the genuine issue-#23 session 940759: the real
+// cttTrainingInfoDetail capture (set 1 fully telemetered, set 2 a sparse
+// weights-only capture) plus a cttTrainingInfo payload carrying completionRate.
+func sessionDetailServer(t *testing.T) *httptest.Server {
 	t.Helper()
 	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		switch {
 		case strings.Contains(r.URL.Path, "cttTrainingInfoDetail"):
 			_, _ = w.Write([]byte(`{"code":0,"data":[
-				{"actionLibraryName":"Standing Dual-Handle Hammer Curl","maxWeight":15,
+				{"actionLibraryName":"Standing Dual-Handle Hammer Curl","maxWeight":15.0,
 				 "maxWeightCount":5,"score":16,"completionScore":5,"forceControlScore":4,
-				 "bilateralBalanceScore":4,"amplitudeStableScore":3,"actionRating":3,
+				 "bilateralBalanceScore":4,"amplitudeStableScore":3,"actionRating":3,"totalCapacity":554.0,
 				 "finishedReps":[
-					{"finishedCount":14,"targetCount":14,"capacity":330,"leftRight":0,
+					{"finishedCount":14,"targetCount":14,"capacity":330.0,"leftRight":0,"breakTime":60,
 					 "trainingInfoDetail":{
 						"weights":[15,15,15,15,15,10,10,10,10,10,10,10,10,10],
+						"leftWeights":[15,15,15,15,15,10,10,10,10,10,10,10,10,10],
+						"rightWeights":[15,15,15,15,15,10,10,10,10,10,10,10,10,10],
 						"leftWatts":[41.65,51.84,49.19,44.87,41.33,35.67,28.9,27.35,25.21,35.9,29.44,28.5,32.58,27.5],
 						"rightWatts":[26.28,55.05,54.9,47.86,39.97,37.79,33.65,28.38,24.25,28.6,29.96,29.07,33.35,27.62],
-						"leftAmplitudes":[0.46,0.68,0.65,0.71,0.69,0.65,0.62,0.67,0.7,0.73,0.74,0.72,0.71,0.73]}}]}]}`))
+						"leftAmplitudes":[0.46,0.68,0.65,0.71,0.69,0.65,0.62,0.67,0.7,0.73,0.74,0.72,0.71,0.73],
+						"rightAmplitudes":[0.46,0.66,0.67,0.7,0.67,0.76,0.66,0.65,0.73,0.78,0.7,0.73,0.73,0.73],
+						"leftRopeSpeeds":[0.66,0.8,0.76,0.71,0.65,0.83,0.67,0.63,0.58,0.86,0.7,0.68,0.77,0.64],
+						"leftFinishedTimes":[1.13,4.69,2.79,2.94,3.16,2.17,2.82,2.59,2.96,1.26,2.95,3.03,3.01,2.87],
+						"leftBreakTimes":[1.23,0.42,0.14,0.07,0.35,0.7,0,0.14,1.61,0,0.28,0.14,1.96,0.14],
+						"leftTimestamps":[1781815035511]}},
+					{"finishedCount":14,"targetCount":14,"capacity":224.0,"leftRight":0,
+					 "trainingInfoDetail":{"weights":[8,8,8,8,8,8,8,8,8,8,8,8,8,8]}}]}]}`))
 		case strings.Contains(r.URL.Path, "cttTrainingInfo"):
-			_, _ = w.Write([]byte(`{"code":0,"data":{"completionRate":0.95}}`))
+			_, _ = w.Write([]byte(`{"code":0,"data":{"completionRate":0.95,"trainingId":940759,"totalCapacity":554.0}}`))
 		default:
 			_, _ = w.Write([]byte(`{"code":0,"data":[]}`))
 		}
 	}))
 }
 
-// TestSessionTelemetryJSON is the CLI-level guard for issue #23: the default
-// view never reports the planned maxWeight and always emits capacity +
-// weight_source; --telemetry unlocks the per-rep arrays and form scores.
-func TestSessionTelemetryJSON(t *testing.T) {
-	srv := sessionTelemetryServer(t)
+// TestSessionFaithfulPassthroughJSON is the CLI-level guard for the faithful
+// contract (issue #23, refined): session --json is a verbatim, lossless dump of
+// both Speediance endpoints — every raw key present and unrenamed, sparse data
+// preserved, nothing derived — and there is no --telemetry flag to "unlock" data.
+func TestSessionFaithfulPassthroughJSON(t *testing.T) {
+	srv := sessionDetailServer(t)
 	defer srv.Close()
 
-	type setT struct {
-		Weight             json.RawMessage `json:"weight"`
-		WeightSource       string          `json:"weight_source"`
-		Capacity           json.RawMessage `json:"capacity"`
-		WeightAvgPerHandle json.RawMessage `json:"weight_avg_per_handle"`
-		RepsDetail         []struct {
-			Rep    int             `json:"rep"`
-			Weight json.RawMessage `json:"weight"`
-		} `json:"reps_detail"`
-	}
-	type exT struct {
-		Scores         json.RawMessage `json:"scores"`
-		MaxWeight      json.RawMessage `json:"max_weight"`
-		MaxWeightCount json.RawMessage `json:"max_weight_count"`
-		Sets           []setT          `json:"sets"`
-	}
-	parse := func(out string) exT {
-		t.Helper()
-		var doc struct {
-			Exercises []exT `json:"exercises"`
-		}
-		if err := json.Unmarshal([]byte(out), &doc); err != nil {
-			t.Fatalf("bad json: %v\n%s", err, out)
-		}
-		if len(doc.Exercises) != 1 {
-			t.Fatalf("exercises = %d, want 1\n%s", len(doc.Exercises), out)
-		}
-		return doc.Exercises[0]
-	}
-
-	// Default (lean) view: real weight, marker, capacity — no telemetry fields.
 	out, _, err := runCLI(t, srv.URL, "session", "940759", "--json")
 	if err != nil {
 		t.Fatal(err)
 	}
-	ex := parse(out)
-	s := ex.Sets[0]
-	if string(s.Weight) == "15" || string(s.Weight) == "15.0" {
-		t.Errorf("default weight = %s — regressed to planned maxWeight (issue #23)", s.Weight)
+
+	// Both endpoints emitted under one document.
+	var doc struct {
+		TrainingID int             `json:"training_id"`
+		Info       json.RawMessage `json:"info"`
+		Detail     []struct {
+			FinishedReps []struct {
+				Detail map[string]json.RawMessage `json:"trainingInfoDetail"`
+			} `json:"finishedReps"`
+		} `json:"detail"`
 	}
-	if string(s.Weight) != "11.8" || s.WeightSource != "derived_avg" {
-		t.Errorf("default set weight=%s source=%s, want 11.8/derived_avg", s.Weight, s.WeightSource)
+	if err := json.Unmarshal([]byte(out), &doc); err != nil {
+		t.Fatalf("bad json: %v\n%s", err, out)
 	}
-	if string(s.Capacity) != "330" {
-		t.Errorf("default capacity = %s, want 330", s.Capacity)
+	if doc.TrainingID != 940759 {
+		t.Errorf("training_id = %d, want 940759", doc.TrainingID)
 	}
-	if s.WeightAvgPerHandle != nil || s.RepsDetail != nil {
-		t.Errorf("default view leaked telemetry fields: %+v", s)
-	}
-	if ex.Scores != nil || ex.MaxWeight != nil {
-		t.Errorf("default view leaked exercise telemetry: %+v", ex)
+	if !strings.Contains(string(doc.Info), `"completionRate": 0.95`) {
+		t.Errorf("info (cttTrainingInfo) not emitted verbatim — completionRate lost:\n%s", doc.Info)
 	}
 
-	// --telemetry view: per-rep arrays + scores present.
-	tout, _, err := runCLI(t, srv.URL, "session", "940759", "--json", "--telemetry")
-	if err != nil {
-		t.Fatal(err)
-	}
-	tex := parse(tout)
-	if tex.Scores == nil || string(tex.MaxWeight) != "15" || string(tex.MaxWeightCount) != "5" {
-		t.Errorf("telemetry exercise meta wrong: scores=%s max=%s cnt=%s", tex.Scores, tex.MaxWeight, tex.MaxWeightCount)
-	}
-	ts := tex.Sets[0]
-	if string(ts.WeightAvgPerHandle) != "11.8" {
-		t.Errorf("weight_avg_per_handle = %s, want 11.8", ts.WeightAvgPerHandle)
-	}
-	if len(ts.RepsDetail) != 14 {
-		t.Fatalf("reps_detail len = %d, want 14\n%s", len(ts.RepsDetail), tout)
-	}
-	if string(ts.RepsDetail[0].Weight) != "15" || string(ts.RepsDetail[5].Weight) != "10" {
-		t.Errorf("reps_detail weights wrong: rep1=%s rep6=%s (want 15, 10 — the mid-set drop)",
-			ts.RepsDetail[0].Weight, ts.RepsDetail[5].Weight)
+	// Every Speediance key flows through verbatim and unrenamed.
+	for _, key := range []string{
+		`"forceControlScore"`, `"bilateralBalanceScore"`, `"amplitudeStableScore"`,
+		`"completionScore"`, `"actionRating"`, `"maxWeight"`, `"maxWeightCount"`,
+		`"weights"`, `"leftWeights"`, `"rightWeights"`, `"leftWatts"`, `"rightWatts"`,
+		`"leftAmplitudes"`, `"rightAmplitudes"`, `"leftRopeSpeeds"`,
+		`"leftFinishedTimes"`, `"leftBreakTimes"`, `"leftTimestamps"`,
+	} {
+		if !strings.Contains(out, key) {
+			t.Errorf("verbatim Speediance key %s missing from session --json", key)
+		}
 	}
 
-	// Human --telemetry annotates the line with the form scores.
-	hout, _, err := runCLI(t, srv.URL, "session", "940759", "--telemetry")
-	if err != nil {
-		t.Fatal(err)
+	// No derived / renamed fields from the superseded telemetry design.
+	for _, banned := range []string{
+		"weight_source", "weight_avg_per_handle", "derived_avg", "reps_detail",
+		"left_watts", "right_watts", "max_hr", "completion_rate", `"exercises"`,
+	} {
+		if strings.Contains(out, banned) {
+			t.Errorf("session --json contains forbidden derived/renamed field %q:\n%s", banned, out)
+		}
 	}
-	if !strings.Contains(hout, "score 16") {
-		t.Errorf("human telemetry missing scores annotation:\n%s", hout)
+
+	// The sparse set 2 keeps only what Speediance returned (weights) — no gap-fill.
+	sparse := doc.Detail[0].FinishedReps[1].Detail
+	if _, ok := sparse["weights"]; !ok || len(sparse) != 1 {
+		t.Errorf("sparse set not preserved faithfully, want only weights, got %v", sparse)
+	}
+
+	// There is no --telemetry flag: requesting it is a usage error.
+	if _, _, err := runCLI(t, srv.URL, "session", "940759", "--json", "--telemetry"); err == nil {
+		t.Error("--telemetry should no longer exist (faithful-by-default), but the flag was accepted")
 	}
 }
 

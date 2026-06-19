@@ -2,24 +2,22 @@ package cli
 
 import (
 	"encoding/json"
-	"fmt"
 	"strconv"
-	"strings"
 
 	"github.com/spf13/cobra"
-
-	"github.com/stozo04/speediance-cli/internal/workout"
 )
 
-// newSessionCmd implements `session <training_id> [--json] [--telemetry]`
-// (GOAL.md §9.3). --telemetry adds the real per-rep, per-side telemetry (weights,
-// power, ROM, tempo, timestamps) and per-exercise form scores the API returns
-// (issue #23); without it, the lean per-set view is emitted.
+// newSessionCmd implements `session <training_id> [--json]` (GOAL.md §9.3). The
+// session is a faithful, complete passthrough: it fetches both Speediance session
+// endpoints and emits their verbatim data payloads under --json — no derived
+// fields, no renaming, no flag to "unlock" data (the endpoints return it, so the
+// CLI returns it). The human view is a minimal, display-only listing of the
+// exercises; --json is the authoritative output.
 func newSessionCmd(app *App) *cobra.Command {
-	var asJSON, telemetry bool
+	var asJSON bool
 	cmd := &cobra.Command{
 		Use:   "session <training_id>",
-		Short: "Full per-set detail for one session",
+		Short: "Full, verbatim Speediance detail for one session",
 		Args:  cobra.ExactArgs(1),
 		RunE: runE(func(cmd *cobra.Command, args []string) error {
 			id, err := strconv.ParseInt(args[0], 10, 64)
@@ -31,58 +29,50 @@ func newSessionCmd(app *App) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			w, err := client.FetchDetail(cmd.Context(), id)
+			sd, err := client.FetchSessionDetail(cmd.Context(), id)
 			if err != nil {
 				return err
 			}
 			app.saveToken(cfg, client)
 
-			out := w.SessionOutput(telemetry)
 			stdout := cmd.OutOrStdout()
 			if asJSON {
-				return writeJSON(stdout, out)
+				return writeJSON(stdout, sd)
 			}
-			if len(out.Exercises) == 0 {
+			names := exerciseNames(sd.Detail)
+			if len(names) == 0 {
 				fprintf(stdout, "No per-set detail for training %d "+
 					"(freestyle 'Free Lift' sessions return none).\n", id)
 				return nil
 			}
-			for _, ex := range out.Exercises {
-				parts := make([]string, 0, len(ex.Sets))
-				for _, s := range ex.Sets {
-					parts = append(parts, formatG(s.Weight)+"x"+strconv.Itoa(s.Reps))
-				}
-				line := "  " + ex.Name + ": " + strings.Join(parts, ", ")
-				// --telemetry annotates the human line with the form scores; the
-				// full per-rep arrays are reserved for --json (too verbose for the
-				// terminal view).
-				if telemetry && ex.Scores != nil {
-					line += "  " + formatScores(ex.Scores)
-				}
-				fprintf(stdout, "%s\n", line)
+			for _, name := range names {
+				fprintf(stdout, "  %s\n", name)
 			}
+			fprintf(cmd.ErrOrStderr(),
+				"Run with --json for the full, verbatim session data.\n")
 			return nil
 		}),
 	}
 	cmd.Flags().BoolVar(&asJSON, "json", false, "machine-readable output")
-	cmd.Flags().BoolVar(&telemetry, "telemetry", false,
-		"include per-rep telemetry (power, ROM, tempo) and per-exercise form scores")
 	return cmd
 }
 
-// formatScores renders the per-exercise form scores as a compact bracketed
-// annotation for the human session view.
-func formatScores(s *workout.Scores) string {
-	return fmt.Sprintf("[score %d · completion %d · force %d · balance %d · amplitude %d · rating %d]",
-		s.Total, s.Completion, s.ForceControl, s.BilateralBalance, s.AmplitudeStable, s.Rating)
-}
-
-// formatG renders a json.Number the way Python's "%g" does for the human session
-// view: shortest form, trailing zeros dropped (e.g. 20.0 -> "20", 22.5 -> "22.5").
-func formatG(n json.Number) string {
-	f, err := strconv.ParseFloat(string(n), 64)
-	if err != nil {
-		return string(n)
+// exerciseNames loosely decodes just the exercise names from the raw detail
+// payload for the human listing. This is a display-only convenience and touches
+// only the human path; the --json output is the raw, unparsed payload.
+func exerciseNames(detail json.RawMessage) []string {
+	if len(detail) == 0 {
+		return nil
 	}
-	return strconv.FormatFloat(f, 'g', -1, 64)
+	var exs []struct {
+		ActionLibraryName string `json:"actionLibraryName"`
+	}
+	if err := json.Unmarshal(detail, &exs); err != nil {
+		return nil
+	}
+	names := make([]string, 0, len(exs))
+	for _, e := range exs {
+		names = append(names, e.ActionLibraryName)
+	}
+	return names
 }

@@ -112,9 +112,8 @@ ignored, so a stray `.env` can never inject unrelated variables into the process
 ### Read workouts
 
 ```bash
-speediance-cli workouts --days 7 --json               # recent sessions (summaries)
-speediance-cli session <training_id> --json           # per-set detail for one session
-speediance-cli session <training_id> --json --telemetry  # + per-rep power/ROM/tempo + form scores
+speediance-cli workouts --days 7 --json      # recent sessions (summaries)
+speediance-cli session <training_id> --json  # full, verbatim detail for one session
 ```
 
 Sample `workouts --json` output:
@@ -133,61 +132,58 @@ Sample `workouts --json` output:
 ]
 ```
 
-Sample `session <id> --json` output:
+`session <id> --json` is a **faithful, complete passthrough** of the session's
+Speediance data — not a summary. A session spans two Speediance endpoints, and the
+CLI emits **both payloads verbatim**: the field names, nesting, and values are
+exactly what Speediance returned (`leftWatts`, `forceControlScore`, `weights`,
+`leftBreakTimes`, …). The CLI does not rename, reshape, compute, or fill gaps —
+consumers decide shape, derivation, and storage.
 
 ```json
 {
-  "training_id": 123456,
-  "completion_rate": 0.95,
-  "exercises": [
+  "training_id": 940759,
+  "info": {
+    "completionRate": 0.95
+    // … the verbatim GET /app/trainingInfo/cttTrainingInfo/<id> data payload
+  },
+  "detail": [
     {
-      "name": "Seated Dual-Handle Lat Pulldown",
-      "sets": [
-        {"set": 1, "reps": 12, "target_reps": 12, "weight": 20.0, "weight_source": "actual", "capacity": 480.0, "max_hr": 148, "left_right": 0}
+      "actionLibraryName": "Standing Dual-Handle Hammer Curl",
+      "maxWeight": 15.0, "maxWeightCount": 5,
+      "score": 16, "completionScore": 5, "forceControlScore": 4,
+      "bilateralBalanceScore": 4, "amplitudeStableScore": 3, "actionRating": 3,
+      "finishedReps": [
+        {
+          "finishedCount": 14, "targetCount": 14, "capacity": 330.0, "leftRight": 0,
+          "trainingInfoDetail": {
+            "weights":      [15,15,15,15,15,10,10,10,10,10,10,10,10,10],
+            "leftWeights":  [15,15,15,15,15,10,10,10,10,10,10,10,10,10],
+            "rightWeights": [15,15,15,15,15,10,10,10,10,10,10,10,10,10],
+            "leftWatts":    [41.65,51.84, "…"],
+            "rightWatts":   [26.28,55.05, "…"],
+            "leftAmplitudes": [0.46,0.68, "…"]
+          }
+        }
       ]
     }
   ]
 }
 ```
 
-**`weight` is the load actually performed, not the planned weight.** For a
-completed *program* session the API reports weight per rep, which can drop
-mid-set (e.g. `15×5 → 10×9`). The `weight` scalar reflects that real load and
-`weight_source` says how it was obtained:
+Notes for consumers:
 
-| `weight_source` | Meaning |
-|---|---|
-| `"actual"` | The API gave a real per-rep weight; reported verbatim. |
-| `"derived_avg"` | Per-rep weight was null; `weight` is the mean of the real per-rep telemetry (per attachment) — never the planned max weight. |
-| `"unavailable"` | No load signal at all; `weight` is `0.0`. |
+- **`weight` is never invented.** There is no synthesized per-set weight. The real
+  per-rep weights are in `trainingInfoDetail.weights[]` (already per attachment, so
+  a single-handle average is just their mean); a mid-set drop (e.g. `15×5 → 10×9`)
+  is therefore visible. Average or summarize as you see fit.
+- **Absence is preserved.** A field or array Speediance omits for a set is omitted
+  in the output too (e.g. a sparse capture with only `weights`); a session with no
+  detail emits `"detail": null`.
+- **No flag unlocks data** — the endpoints return it, so the CLI returns it. There
+  is no `--telemetry`.
 
-`capacity` (total weight moved across the set) is always emitted. The full
-per-rep, per-side telemetry and per-exercise form scores are available with
-`--telemetry`:
-
-```json
-{
-  "name": "Standing Dual-Handle Hammer Curl",
-  "scores": {"total": 16, "completion": 5, "force_control": 4, "bilateral_balance": 4, "amplitude_stable": 3, "rating": 3},
-  "max_weight": 15.0, "max_weight_count": 5,
-  "sets": [
-    {
-      "set": 1, "reps": 14, "target_reps": 14, "weight": 11.8, "weight_source": "derived_avg",
-      "capacity": 330.0, "max_hr": 0.0, "left_right": 0, "weight_avg_per_handle": 11.8,
-      "reps_detail": [
-        {"rep": 1, "weight": 15, "left_watts": 41.65, "right_watts": 26.28, "left_amp": 0.46, "right_amp": 0.46},
-        {"rep": 6, "weight": 10, "left_watts": 35.67, "right_watts": 37.79, "left_amp": 0.65, "right_amp": 0.76}
-      ]
-    }
-  ]
-}
-```
-
-Single-attachment moves (e.g. a rope face pull) populate only the left-side
-arrays; the right-side `reps_detail` fields are omitted for those.
-
-> "Free Lift" (freestyle) sessions return totals only — no per-set detail.
-> Sessions started from a **program** return full set data.
+> "Free Lift" (freestyle) sessions return a null `detail` (no per-set data);
+> `info` is still emitted. Sessions started from a **program** return full data.
 
 ### Browse the exercise catalog
 
@@ -256,7 +252,7 @@ layout.
 |---|---|---|
 | `login` | Authenticate and cache a session token | — |
 | `workouts [--days N]` | List recent completed sessions | ✓ |
-| `session <training_id> [--telemetry]` | Per-set detail for one session; `--telemetry` adds per-rep power/ROM/tempo + form scores | ✓ |
+| `session <training_id>` | Full, verbatim Speediance detail for one session (both endpoints, no derivation) | ✓ |
 | `library [--search X] [--out FILE]` | Dump or search exercise catalog | ✓ |
 | `push <plan.json> [--dry-run]` | Create a training program on the account | ✓ |
 | `config show\|set\|path` | Manage `config.json` | ✓ (`show`) |

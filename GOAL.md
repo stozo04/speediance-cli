@@ -332,31 +332,36 @@ matches Python's `json.dumps(indent=2)`.
 - stdout (human): `Found N session(s)…` then `- <date>  <title>  -  <min> min, <kcal> kcal  (id <id>)`;
   empty → `No completed workouts in the last N day(s).`
 
-### 9.3 `session <training_id> [--json] [--telemetry]`
-- `fetch_detail`: GET `/app/trainingInfo/cttTrainingInfo/<id>` → `completionRate`; GET
-  `/app/trainingInfo/cttTrainingInfoDetail/<id>` → list; per exercise: `actionLibraryName`,
-  `maxWeight`, the form scores, and `finishedReps[]` items `{finishedCount, targetCount, weight,
-  capacity, maxHeartRate, leftRight, trainingInfoDetail}`. Group sets by exercise name, first-seen
-  order.
-- **Per-set `weight` (issue #23):** report the load **actually performed**, never the *planned*
-  exercise `maxWeight`. For a completed program session the API leaves the per-rep `weight` null;
-  derive the scalar from the real per-rep telemetry (`trainingInfoDetail.weights[]` mean — already
-  per-attachment, so no handle-count branch — falling back to `capacity/reps`) and tag it with
-  `weight_source` (`"actual"` | `"derived_avg"` | `"unavailable"`). `capacity` is always emitted.
-  The old `rep.get("weight", maxWeight)` fallback fabricated flat per-set weights and is removed.
-- **stdout `--json`** (lean view):
+### 9.3 `session <training_id> [--json]`
+**Faithful, lossless passthrough (issue #23, refined).** A session is a dumb,
+complete dump of the Speediance data — the CLI must not interpret, summarize,
+reshape, rename, compute, or fabricate. It fetches **both** session endpoints and
+emits each endpoint's `data` payload **verbatim** (transport envelope unwrapped,
+payload untouched) so any field — modeled or not, present today or added by a
+future app update — flows straight through. This supersedes the earlier
+typed/derived design (a `--telemetry` flag, `reps_detail` reshape, snake_case
+renames, and a synthesized per-set `weight`/`weight_source`), all removed.
+- `FetchSessionDetail`: GET `/app/trainingInfo/cttTrainingInfo/<id>` (session-level,
+  incl. `completionRate`) and GET `/app/trainingInfo/cttTrainingInfoDetail/<id>`
+  (per-exercise, per-rep arrays). A non-zero API code or empty body for either leaves
+  that payload nil → emitted as JSON `null` (absence preserved, never fabricated).
+- **No derived fields.** There is no synthesized per-set weight and no maxWeight
+  fallback. The real per-rep weights live in `trainingInfoDetail.weights[]` (already
+  per attachment); consumers average if they want a single number.
+- **stdout `--json`** (a small structural wrapper around two verbatim payloads;
+  `training_id` echoes the requested id):
   ```json
-  {"training_id": 0, "completion_rate": 0.0,
-   "exercises": [{"name": "", "sets": [
-     {"set": 1, "reps": 0, "target_reps": 0, "weight": 0.0, "weight_source": "",
-      "capacity": 0.0, "max_hr": 0.0, "left_right": 0}]}]}
+  {"training_id": 0,
+   "info":   { /* verbatim cttTrainingInfo data, incl. completionRate */ },
+   "detail": [ /* verbatim cttTrainingInfoDetail data: actionLibraryName, maxWeight,
+                  forceControlScore, finishedReps[].trainingInfoDetail.{weights,
+                  leftWatts,rightWatts,leftBreakTimes,…} — original names & values */ ]}
   ```
-- **`--telemetry`** adds, per exercise, `scores`/`max_weight`/`max_weight_count`, and per set
-  `weight_avg_per_handle` + `reps_detail[]` (per-rep, per-side `weight`, watts, amplitude, rope
-  speed, finished/break times, timestamp). Single-attachment moves populate only the left-side
-  arrays → right-side fields omitted. These fields are omitted entirely without the flag.
-- **Edge:** "Free Lift" / freestyle sessions return no per-set detail → `exercises: []`; human mode
-  prints the "no per-set detail (freestyle…)" message.
+- **Edge:** "Free Lift" / freestyle sessions return a null `detail` (`"detail": null`);
+  `info` is still emitted. Human mode lists exercise names (display-only) and prints
+  the "no per-set detail (freestyle…)" message when `detail` is empty.
+- **Flags policy:** only scope/selection flags (`<id>`, `--config`); no flag may
+  reshape, derive, summarize, or filter a record's content.
 
 ### 9.4 `library [--search X] [--out FILE] [--json]`  (default `--out library.json`)
 - `fetch_library(device_type)`:

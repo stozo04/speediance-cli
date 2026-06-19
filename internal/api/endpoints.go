@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"encoding/json"
 	"strconv"
 	"time"
 
@@ -33,43 +34,43 @@ func (c *Client) FetchWorkouts(ctx context.Context, days int) ([]workout.Workout
 	return workout.ParseRecords(env.Data)
 }
 
-// FetchDetail returns per-set detail for one session id (GOAL.md §9.3), used by
-// the `session` command which has only the id.
-func (c *Client) FetchDetail(ctx context.Context, trainingID int64) (*workout.Workout, error) {
-	w := &workout.Workout{TrainingID: trainingID}
-	if err := c.PopulateDetail(ctx, w); err != nil {
-		return nil, err
-	}
-	return w, nil
-}
-
-// PopulateDetail adds the completion rate and per-set detail to an existing
-// workout. It makes two GETs: cttTrainingInfo for the completion rate, then
-// cttTrainingInfoDetail for the per-set list. Freestyle "Free Lift" sessions
-// return no detail, leaving Sets empty. Mirrors the Python client's
-// fetch_detail, which mutates in place.
-func (c *Client) PopulateDetail(ctx context.Context, w *workout.Workout) error {
-	id := strconv.FormatInt(w.TrainingID, 10)
+// FetchSessionDetail returns the full detail for one session id (GOAL.md §9.3) as
+// a faithful, lossless passthrough. A session spans two endpoints — cttTrainingInfo
+// (session-level, including completionRate) and cttTrainingInfoDetail (per-exercise,
+// per-rep detail) — and this fetches both and carries their *verbatim* data
+// payloads through untouched. The CLI parses, renames, reshapes, or derives
+// nothing here; consumers decide shape. A non-zero API code or an empty body for
+// either call leaves that payload nil (emitted as JSON null), preserving absence
+// rather than fabricating data — e.g. a "Free Lift" freestyle session simply
+// returns a null detail.
+func (c *Client) FetchSessionDetail(ctx context.Context, trainingID int64) (*workout.SessionDetail, error) {
+	id := strconv.FormatInt(trainingID, 10)
 
 	info, err := c.GetJSON(ctx, "/app/trainingInfo/cttTrainingInfo/"+id)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	if info.Code == 0 {
-		w.SetCompletionRate(info.Data)
-	}
-
 	detail, err := c.GetJSON(ctx, "/app/trainingInfo/cttTrainingInfoDetail/"+id)
 	if err != nil {
-		return err
+		return nil, err
+	}
+
+	sd := &workout.SessionDetail{TrainingID: trainingID}
+	if info.Code == 0 {
+		sd.Info = rawData(info.Data)
 	}
 	if detail.Code == 0 {
-		// Only a JSON array yields sets; any other shape (null/object) is
-		// silently treated as "no per-set detail", matching Python's
-		// isinstance(data, list) guard.
-		if err := w.AddDetailSets(detail.Data); err != nil {
-			c.logger.Debug("no per-set detail list", "training_id", id, "err", err)
-		}
+		sd.Detail = rawData(detail.Data)
 	}
-	return nil
+	return sd, nil
+}
+
+// rawData returns the payload verbatim, or nil for an absent/empty one so it
+// serializes as JSON null rather than invalid empty bytes. The payload itself is
+// never altered.
+func rawData(d json.RawMessage) json.RawMessage {
+	if len(d) == 0 {
+		return nil
+	}
+	return d
 }

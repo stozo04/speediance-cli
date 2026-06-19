@@ -80,8 +80,12 @@ array of these). `kind` is `"program"`, `"free"`, or `""`:
 
 - `kind:"program"` → `info` = `cttTrainingInfo` (incl. `completionRate`); `detail` =
   per-exercise, per-rep arrays.
-- `kind:"free"` → `info` = `freeTraining` totals (`totalCapacity`, `totalEnergy`,
-  `totalDistance` for rowing/ski); `detail` = `[]` (free lifts have no per-rep data).
+- `kind:"free"` → the free *namespace* (not "freestyle"): `info` = `freeTraining`
+  totals (`totalCapacity`, `totalEnergy`, `totalDistance` for rowing/ski; `name` for
+  guided). `detail` is `[]` for a freestyle Free Lift, but **populated** for a
+  guided session — e.g. *Aerobic Rowing* fills it with per-interval
+  `finishedReps` (`distance`/`pace`/`spm`) + per-stroke traces. Read `detail`;
+  don't assume `free` ⇒ empty. (`info.name` present ⇒ a guided session.)
 
 `info`/`detail` are the **verbatim** Speediance payloads — original field names and
 values (`leftWatts`, `forceControlScore`, `weights`, `leftBreakTimes`, …). The CLI

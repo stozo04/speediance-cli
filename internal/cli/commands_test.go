@@ -565,6 +565,12 @@ func dispatchServer(t *testing.T) *httptest.Server {
 		return `{"code":0,"data":{"id":` + id + `,"type":1,"totalCapacity":0.0,"totalEnergy":65098.22,` +
 			`"totalDistance":1505.5,"existBoatingSkiDataGraph":true,"trainingCount":15}}`
 	}
+	// id 400: a GUIDED rowing session (type 7) — free namespace, but unlike a
+	// freestyle Free Lift its freeTrainingDetail IS populated (per-interval rows).
+	rowingInfo := `{"code":0,"data":{"id":400,"type":7,"name":"Aerobic Rowing","totalDistance":4015.17,"totalEnergy":332847.39,"trainingTime":1484}}`
+	rowingDetail := `{"code":0,"data":[{"actionLibraryName":"Aerobic Rowing","completionScore":5,` +
+		`"finishedReps":[{"distance":290.93,"pace":222.0,"spm":21,"time":120,` +
+		`"trainingInfoDetail":{"leftMinRopeLengths":[0.03,0.29,0.60],"rightMinRopeLengths":[0.03,0.30,0.64]}}]}]}`
 	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		p := r.URL.Path
@@ -573,7 +579,8 @@ func dispatchServer(t *testing.T) *httptest.Server {
 		case strings.Contains(p, "userTrainingDataRecord"):
 			_, _ = fmt.Fprintf(w, `{"code":0,"data":[
 				{"trainingId":100,"id":900,"title":"Pull Program","type":5,"startTimestamp":%d,"trainingTime":1731,"calorie":205,"totalCapacity":8380.0},
-				{"trainingId":200,"id":901,"title":"Free Lift","type":1,"startTimestamp":%d,"trainingTime":904,"calorie":77,"totalCapacity":0.0}]}`, ts, ts)
+				{"trainingId":200,"id":901,"title":"Free Lift","type":1,"startTimestamp":%d,"trainingTime":904,"calorie":77,"totalCapacity":0.0},
+				{"trainingId":400,"id":902,"title":"Aerobic Rowing","type":7,"startTimestamp":%d,"trainingTime":1484,"calorie":250,"totalCapacity":0.0}]}`, ts, ts, ts)
 		case strings.Contains(p, "cttTrainingInfoDetail"):
 			if in(id, "100", "300") {
 				_, _ = w.Write([]byte(programDetail))
@@ -587,11 +594,18 @@ func dispatchServer(t *testing.T) *httptest.Server {
 				_, _ = w.Write([]byte(`{"code":20,"message":"no program"}`))
 			}
 		case strings.Contains(p, "freeTrainingDetail"):
-			_, _ = w.Write([]byte(`{"code":0,"data":[]}`))
-		case strings.Contains(p, "freeTraining"):
-			if in(id, "200", "300") {
-				_, _ = w.Write([]byte(freeInfo(id)))
+			if id == "400" {
+				_, _ = w.Write([]byte(rowingDetail))
 			} else {
+				_, _ = w.Write([]byte(`{"code":0,"data":[]}`))
+			}
+		case strings.Contains(p, "freeTraining"):
+			switch {
+			case id == "400":
+				_, _ = w.Write([]byte(rowingInfo))
+			case in(id, "200", "300"):
+				_, _ = w.Write([]byte(freeInfo(id)))
+			default:
 				_, _ = w.Write([]byte(`{"code":20,"message":"no free"}`))
 			}
 		default:
@@ -645,18 +659,53 @@ func TestTodayResolvesEverySessionType(t *testing.T) {
 	if err := json.Unmarshal([]byte(out), &arr); err != nil {
 		t.Fatalf("bad json: %v\n%s", err, out)
 	}
-	if len(arr) != 2 {
-		t.Fatalf("today returned %d sessions, want 2\n%s", len(arr), out)
+	if len(arr) != 3 {
+		t.Fatalf("today returned %d sessions, want 3\n%s", len(arr), out)
 	}
-	got := map[int]string{}
+	byID := map[int]sessionDoc{}
 	for _, s := range arr {
-		got[s.TrainingID] = s.Kind
+		byID[s.TrainingID] = s
 	}
-	if got[100] != "program" {
-		t.Errorf("session 100 kind = %q, want program", got[100])
+	if byID[100].Kind != "program" {
+		t.Errorf("session 100 kind = %q, want program", byID[100].Kind)
 	}
-	if got[200] != "free" {
-		t.Errorf("session 200 kind = %q, want free", got[200])
+	if byID[200].Kind != "free" {
+		t.Errorf("session 200 kind = %q, want free", byID[200].Kind)
+	}
+	// Guided rowing (type 7) auto-resolves to the free namespace WITH a populated
+	// detail — so a single `today` call delivers its per-interval data too.
+	if byID[400].Kind != "free" {
+		t.Errorf("session 400 (Aerobic Rowing) kind = %q, want free", byID[400].Kind)
+	}
+	if !strings.Contains(string(byID[400].Detail), `"spm"`) {
+		t.Errorf("session 400 detail missing the per-interval rowing data:\n%s", byID[400].Detail)
+	}
+}
+
+// TestSessionGuidedRowingHasDetail: a guided rowing session (type 7) is delivered
+// with kind=free AND a populated detail (per-interval rows) — proving kind=free
+// is not synonymous with "empty detail" (that's only freestyle Free Lifts).
+func TestSessionGuidedRowingHasDetail(t *testing.T) {
+	srv := dispatchServer(t)
+	defer srv.Close()
+	out, _, err := runCLI(t, srv.URL, "session", "400", "--json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var doc sessionDoc
+	if err := json.Unmarshal([]byte(out), &doc); err != nil {
+		t.Fatalf("bad json: %v\n%s", err, out)
+	}
+	if doc.Kind != "free" {
+		t.Errorf("kind = %q, want free", doc.Kind)
+	}
+	if !strings.Contains(string(doc.Info), `"name": "Aerobic Rowing"`) {
+		t.Errorf("info.name (guided session) missing:\n%s", doc.Info)
+	}
+	for _, key := range []string{`"finishedReps"`, `"spm"`, `"pace"`, `"leftMinRopeLengths"`} {
+		if !strings.Contains(string(doc.Detail), key) {
+			t.Errorf("guided-rowing detail missing verbatim key %s:\n%s", key, doc.Detail)
+		}
 	}
 }
 

@@ -89,18 +89,16 @@ const (
 	FreeOnly
 )
 
-// modeForType picks a dispatch mode from the list's numeric session type. Known
-// types steer to their namespace (probing the other only as a fallback); an
-// unknown type uses Auto so a future session kind still resolves.
+// modeForType picks a dispatch mode from the list's numeric session type. Type 5
+// is program-served, so probe program first; every other type (1 freestyle, 2/7
+// guided cardio/programs, and unknowns) is free-served, so probe free first —
+// efficient and collision-safe (a same-id program is never queried when the free
+// session has data). Either way the fallback still catches a misclassification.
 func modeForType(sessionType int) DispatchMode {
-	switch sessionType {
-	case 1:
-		return FreeFirst
-	case 5:
-		return Auto // program-first
-	default:
-		return Auto
+	if sessionType == 5 {
+		return Auto // program-first, free fallback
 	}
+	return FreeFirst // free-first, program fallback
 }
 
 // ResolveSession fetches one session's detail, autonomously selecting the right

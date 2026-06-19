@@ -173,6 +173,18 @@ func TestSessionDetailIsVerbatimPassthrough(t *testing.T) {
 	}
 }
 
+// TestKindForType pins the digest type→kind mapping: 5 is program, every other
+// positive type (1 freestyle, 2 guided program, 7 guided cardio like Aerobic
+// Rowing) is the free namespace, and 0/absent is "".
+func TestKindForType(t *testing.T) {
+	cases := map[int]string{5: "program", 1: "free", 2: "free", 7: "free", 0: "", -1: ""}
+	for typ, want := range cases {
+		if got := workout.KindForType(typ); got != want {
+			t.Errorf("KindForType(%d) = %q, want %q", typ, got, want)
+		}
+	}
+}
+
 // TestSessionDetailNilPayloadsAreNull asserts absence is preserved, not invented:
 // a session for which Speediance returns nothing emits JSON null for each payload
 // (never {} or a fabricated default).

@@ -105,15 +105,19 @@ func (r rawRecord) toWorkout() Workout {
 }
 
 // KindForType maps the raw numeric session `type` to the stable `kind` label the
-// CLI emits ("program" | "free" | ""). It is intentionally conservative: only the
-// two observed values are mapped, and any other/unknown type yields "" rather than
-// a fabricated label — the autonomous `session` resolver still finds such a
-// session by probing both namespaces.
+// CLI emits ("program" | "free" | ""). Observed across a year of real sessions:
+// type 5 is the program/Coach namespace (cttTrainingInfo[Detail]); every other
+// positive type — 1 (freestyle Free Lift), 2 (guided programs like
+// "Ultimate Sculpt & Burn"), 7 (guided cardio like "Aerobic Rowing") — is served
+// by the free namespace (freeTraining[Detail]). A non-positive/absent type yields
+// "". This is the digest hint used by `workouts`; `session`/`today` confirm the
+// kind by *which endpoint actually answered*, so they stay correct even if a
+// future type breaks this mapping.
 func KindForType(sessionType int) string {
-	switch sessionType {
-	case 5:
+	switch {
+	case sessionType == 5:
 		return "program"
-	case 1:
+	case sessionType >= 1:
 		return "free"
 	default:
 		return ""

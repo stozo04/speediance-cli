@@ -155,8 +155,14 @@ the same two fields:
 | `kind` | `info` | `detail` |
 |---|---|---|
 | `"program"` | `cttTrainingInfo` payload (incl. `completionRate`) | `cttTrainingInfoDetail` — per-exercise, per-rep arrays |
-| `"free"` | `freeTraining` payload (totals: `totalCapacity`, `totalEnergy`, `totalDistance` for rowing/ski) | `freeTrainingDetail` (usually `[]` — free lifts record no per-rep breakdown) |
+| `"free"` | `freeTraining` payload (totals: `totalCapacity`, `totalEnergy`, `totalDistance` for rowing/ski; `name` for guided sessions) | `freeTrainingDetail` — `[]` for a freestyle Free Lift, **populated** for a guided session (e.g. *Aerobic Rowing* → per-interval `finishedReps` with `distance`/`pace`/`spm` + per-stroke traces) |
 | `""` | `null` | `null` (no session found in either namespace) |
+
+> `kind:"free"` is the *free namespace*, not "freestyle". It spans both a
+> freestyle **Free Lift** (no `info.name`, `detail: []`, aggregates only) and a
+> **guided** free-namespace session (has `info.name`, often a populated `detail`) —
+> guided cardio like **Aerobic Rowing** carries the full per-interval breakdown.
+> Distinguish via `info.name` + whether `detail` has rows; don't assume `free` ⇒ empty.
 
 A program session:
 
@@ -200,10 +206,11 @@ Notes for consumers:
   program, the real per-rep weights are in `trainingInfoDetail.weights[]` (already
   per attachment, so a single-handle average is just their mean); a mid-set drop
   (e.g. `15×5 → 10×9`) is therefore visible. Average or summarize as you see fit.
-- **Free lifts have no per-rep breakdown.** A `kind: "free"` session (free weights,
-  rowing, ski) exposes session-level totals in `info` (`totalCapacity`,
-  `totalEnergy`, `totalDistance`, `trainingCount`, …) and an empty `detail` — that
-  is all Speediance records for them.
+- **Free-namespace detail varies.** A *freestyle* Free Lift records session-level
+  totals only (`info` aggregates, `detail: []`). A *guided* free-namespace session
+  does more: **Aerobic Rowing** fills `detail` with per-interval rows
+  (`distance`/`pace`/`spm`/`time`) and per-stroke rope-length traces. Always read
+  `detail` rather than assuming `kind:"free"` is empty.
 - **Absence is preserved.** A field or array Speediance omits is omitted in the
   output too (e.g. a sparse capture with only `weights`); nothing is back-filled.
 - **Empty shape.** `info` is `object | null`; `detail` is `array | null`. These are

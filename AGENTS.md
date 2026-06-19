@@ -92,7 +92,10 @@ values (`leftWatts`, `forceControlScore`, `weights`, `leftBreakTimes`, …). The
 never renames, reshapes, computes, or fabricates; there is no synthesized per-set
 weight and no `--telemetry` flag. Absence is preserved (omitted fields stay
 omitted). `info` is `object | null` and `detail` is `array | null` (never
-normalized) — treat both `null` and `[]` as "no rows". A `trainingId` can mean
+normalized) — treat both `null` and `[]` as "no rows". Values are **unvalidated**:
+Speediance's fields aren't always self-consistent, so derive what you need from raw
+values (e.g. a rowing split = `distance / time`, not the per-interval `pace` field,
+which is instantaneous) rather than trusting one field. A `trainingId` can mean
 different sessions across namespaces; auto-detect prefers program, and
 `--free`/`--program` force a namespace when an id is ambiguous.
 

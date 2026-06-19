@@ -213,6 +213,11 @@ Notes for consumers:
   `detail` rather than assuming `kind:"free"` is empty.
 - **Absence is preserved.** A field or array Speediance omits is omitted in the
   output too (e.g. a sparse capture with only `weights`); nothing is back-filled.
+- **Values are unvalidated passthrough.** Speediance's fields aren't guaranteed
+  internally consistent, so derive the metric you want from raw values rather than
+  trusting a single field — e.g. a rowing split is `distance / time`, not the
+  per-interval `pace` field (which is an instantaneous sample). The CLI never
+  "corrects" a value; that interpretation is yours.
 - **Empty shape.** `info` is `object | null`; `detail` is `array | null`. These are
   the verbatim endpoint payloads (never normalized), so treat **both `null` and
   `[]`** as "no rows" — e.g. `if not detail`. In practice `detail` is a populated

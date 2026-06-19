@@ -34,6 +34,23 @@ always in your context.
 - `go build ./... && go vet ./... && go test ./...` must pass; `gofmt -l` must be clean.
 - `main` is PR-protected — land changes via pull request.
 
+## Local reference data — `REAL-SPEEDIANCE-JSON/`
+
+If present on the working machine, `REAL-SPEEDIANCE-JSON/` holds **real captured
+Speediance session JSON** from a live account — the ground-truth shapes of actual
+CLI output / API responses per session `kind`/`type` (program, freestyle Free Lift,
+guided rowing, the `today` array, …). See its `README.md` for an index.
+
+- It is **gitignored on purpose** — personal workout data in a public repo. **Never
+  commit it, never move it back into a tracked path, and never paste its contents
+  into a PR, issue, commit, or published doc.** It is local reference only.
+- **Prefer it over fabricating samples.** When changing session/dispatch code or
+  reasoning about the `--json` contract, read a real file here instead of inventing a
+  shape. Save any new live captures into this folder.
+- It may be **absent** (a fresh clone / CI / another machine) — that's expected; the
+  test fixtures (e.g. the genuine `940759` data embedded in tests) are the committed,
+  CI-visible source of truth. This folder is a convenience, never a dependency.
+
 ## PR gate — guard tests are mandatory and immutable
 
 A PR may not be opened or merged unless `go build ./... && go vet ./... && go test -race ./...`

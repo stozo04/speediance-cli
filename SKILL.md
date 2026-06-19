@@ -206,6 +206,10 @@ Notes for consumers:
   is all Speediance records for them.
 - **Absence is preserved.** A field or array Speediance omits is omitted in the
   output too (e.g. a sparse capture with only `weights`); nothing is back-filled.
+- **Empty shape.** `info` is `object | null`; `detail` is `array | null`. These are
+  the verbatim endpoint payloads (never normalized), so treat **both `null` and
+  `[]`** as "no rows" — e.g. `if not detail`. In practice `detail` is a populated
+  array for `kind:"program"`, `[]` for `kind:"free"`, and `null` only for `kind:""`.
 - **No flag unlocks data** — the endpoints return it, so the CLI returns it. There
   is no `--telemetry`.
 

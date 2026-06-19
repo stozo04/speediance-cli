@@ -87,8 +87,10 @@ array of these). `kind` is `"program"`, `"free"`, or `""`:
 values (`leftWatts`, `forceControlScore`, `weights`, `leftBreakTimes`, …). The CLI
 never renames, reshapes, computes, or fabricates; there is no synthesized per-set
 weight and no `--telemetry` flag. Absence is preserved (omitted fields stay
-omitted). A `trainingId` can mean different sessions across namespaces; auto-detect
-prefers program, and `--free`/`--program` force a namespace when an id is ambiguous.
+omitted). `info` is `object | null` and `detail` is `array | null` (never
+normalized) — treat both `null` and `[]` as "no rows". A `trainingId` can mean
+different sessions across namespaces; auto-detect prefers program, and
+`--free`/`--program` force a namespace when an id is ambiguous.
 
 ## 4. Create a workout (so it appears on the machine)
 

@@ -75,7 +75,7 @@ auto-builds the GitHub Release notes by **grouping commit subjects** (`feat:` �
 `fix:` → Bug fixes, else → Other changes; `docs:`/`test:`/`chore:` excluded) plus a static
 install footer — there is **no `CHANGELOG.md`**. Use the right prefix so the changelog groups
 cleanly, and squash-merge PRs with a clean Conventional-Commit title. Full release playbook
-(versioning, tagging, dry-runs): `Releasing.md`.
+(versioning, tagging, dry-runs): `RELEASING.md`.
 
 ## Scope — don't add a `doctor`/health command
 

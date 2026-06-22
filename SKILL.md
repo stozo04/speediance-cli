@@ -254,7 +254,8 @@ Notes for consumers:
 - **Empty shape.** `info` is `object | null`; `detail` is `array | null`. These are
   the verbatim endpoint payloads (never normalized), so treat **both `null` and
   `[]`** as "no rows" — e.g. `if not detail`. In practice `detail` is a populated
-  array for `kind:"program"`, `[]` for `kind:"free"`, and `null` only for `kind:""`.
+  array for `kind:"program"`, `[]` for a freestyle Free Lift but a **populated array
+  for a guided free session** (e.g. Aerobic Rowing), and `null` only for `kind:""`.
 - **No flag unlocks data** — the endpoints return it, so the CLI returns it. There
   is no `--telemetry`.
 

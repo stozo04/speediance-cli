@@ -65,7 +65,11 @@ no app navigation mid-session.
 
 `speediance-cli` is a single static binary — **no Python or other runtime needed**.
 
-Install it one of two ways:
+Do these steps **in order**. Step 2 must come before step 3: `login` authenticates
+with the credentials you supply in step 2 and exits with a config error if neither
+the environment, a `.env`, nor `config.json` provides an email *and* password.
+
+**1. Install** — one of two ways:
 
 ```bash
 # A) Download a release binary for your OS/arch, extract, put it on your PATH:
@@ -75,10 +79,39 @@ Install it one of two ways:
 go install github.com/stozo04/speediance-cli/cmd/speediance-cli@latest
 ```
 
-Then authenticate:
+**2. Provide your credentials** — pick whichever fits how you run the tool
+(full reference in [Credentials](#credentials) below):
 
 ```bash
-speediance-cli login   # authenticates and caches a session token (run `config path` to see where)
+# A) Environment variables — best for CI / one-off shells:
+export SPEEDIANCE_EMAIL="you@example.com"
+export SPEEDIANCE_PASSWORD="your-password"
+
+# B) Or a gitignored .env in the working directory — recommended for OpenClaw /
+#    agent workspaces, since a headless agent can't answer an interactive prompt.
+#    Put this in <workspace>/.env:
+#      SPEEDIANCE_EMAIL=you@example.com
+#      SPEEDIANCE_PASSWORD=your-password
+
+# C) Or write them into config.json (created 0600, owner-only) without hand-editing:
+speediance-cli config set email "you@example.com"
+speediance-cli config set password "your-password"
+```
+
+> **Heads-up on option C:** a value passed on the command line is visible in your
+> shell history and process list. For interactive setup prefer A or B; if you use
+> C, clear the history entry afterward.
+
+**3. Authenticate** — verifies the credentials and caches a session token:
+
+```bash
+speediance-cli login   # run `speediance-cli config path` to see where the token is cached
+```
+
+**4. Read your data:**
+
+```bash
+speediance-cli today --json
 ```
 
 ## Credentials
@@ -221,7 +254,8 @@ Notes for consumers:
 - **Empty shape.** `info` is `object | null`; `detail` is `array | null`. These are
   the verbatim endpoint payloads (never normalized), so treat **both `null` and
   `[]`** as "no rows" — e.g. `if not detail`. In practice `detail` is a populated
-  array for `kind:"program"`, `[]` for `kind:"free"`, and `null` only for `kind:""`.
+  array for `kind:"program"`, `[]` for a freestyle Free Lift but a **populated array
+  for a guided free session** (e.g. Aerobic Rowing), and `null` only for `kind:""`.
 - **No flag unlocks data** — the endpoints return it, so the CLI returns it. There
   is no `--telemetry`.
 

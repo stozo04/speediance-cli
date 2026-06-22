@@ -38,15 +38,23 @@ same `--json`).
 
 ```bash
 go install github.com/stozo04/speediance-cli/cmd/speediance-cli@latest
-speediance-cli login
 ```
 
 `go install` drops the binary in `$(go env GOPATH)/bin` — make sure that's on your `PATH`.
 
-Credentials via env vars (`SPEEDIANCE_EMAIL`, `SPEEDIANCE_PASSWORD`, `SPEEDIANCE_REGION`),
-a gitignored `config.json`, or a gitignored `.env` file in the working directory (auto-loaded;
-real exported env vars take precedence over it) — see `.env.example` / `config.example.json` and
-[AGENTS.md](AGENTS.md). SSO/Google accounts: set a password in the Speediance app once.
+Set credentials **before** your first command — `login` and every data command read
+them and exit with a config error if none are found. Provide them via env vars
+(`SPEEDIANCE_EMAIL`, `SPEEDIANCE_PASSWORD`, `SPEEDIANCE_REGION`), a gitignored `config.json`,
+a gitignored `.env` in the working directory (auto-loaded; real exported env vars take
+precedence), or `speediance-cli config set email|password …` (writes `config.json` at `0600`).
+SSO/Google accounts: set a password in the Speediance app once. See `.env.example` /
+`config.example.json` and [AGENTS.md](AGENTS.md).
+
+```bash
+export SPEEDIANCE_EMAIL="you@example.com"
+export SPEEDIANCE_PASSWORD="your-password"
+speediance-cli login   # verifies the credentials and caches a session token
+```
 
 ## Commands
 
@@ -126,7 +134,8 @@ GitHub Actions — no manual publish step needed.
   isn't synced across machines. Override with `SPEEDIANCE_TOKEN_CACHE` or the
   `token_cache_path` config key; `config path` shows where it resolved. An older
   `.token.json` in the working directory is migrated automatically on first run.
-- "Free Lift" (freestyle) sessions return totals only — no per-set detail. Programs do.
+- A *freestyle* "Free Lift" returns session totals only (no per-set detail); **programs
+  and guided free sessions (e.g. Aerobic Rowing) return full per-rep/per-interval detail.**
 - `library.json` is a committed **snapshot** of the exercise catalog for convenience;
   regenerate it anytime with `speediance-cli library`.
 - `main` is PR-protected; changes land via pull request.

@@ -45,6 +45,55 @@ func TestSkillDocAdvertisesEveryEnvVar(t *testing.T) {
 	}
 }
 
+// TestSkillDocAdvertisesFileAccess extends the §0 (advertised == actual) guard
+// to the SKILL.md permissions block (CLAWHUB_STANDARDS §4): every file the
+// binary actually reads or writes must appear in the corresponding files.read /
+// files.write list, so the published skill never under-declares a capability.
+// It asserts the negative — a real file access MISSING from the block fails
+// loudly — the exact drift that previously left the `config set` write of
+// config.json and the working-directory .env read unadvertised.
+func TestSkillDocAdvertisesFileAccess(t *testing.T) {
+	skill, err := os.ReadFile(filepath.Join(repoRoot(t), "SKILL.md"))
+	if err != nil {
+		t.Fatalf("read SKILL.md: %v", err)
+	}
+	doc := string(skill)
+
+	// Slice one permissions list out of the frontmatter by its start key and the
+	// key that follows it (order: network, files.read, files.write, requires).
+	block := func(start, end string) string {
+		t.Helper()
+		i := strings.Index(doc, start)
+		if i < 0 {
+			t.Fatalf("SKILL.md permissions block missing %q", start)
+		}
+		rest := doc[i+len(start):]
+		j := strings.Index(rest, end)
+		if j < 0 {
+			t.Fatalf("SKILL.md: no %q after %q — permissions block reordered?", end, start)
+		}
+		return rest[:j]
+	}
+	reads := block("files.read:", "files.write:")
+	writes := block("files.write:", "requires:")
+
+	// Everything the binary reads: config.json (internal/config discovery), the
+	// token cache (auth.Load), plan JSON (template.LoadPlan), and the
+	// working-directory .env (godotenv.Read in internal/config).
+	for _, want := range []string{"config.json", "token", "plan", ".env"} {
+		if !strings.Contains(reads, want) {
+			t.Errorf("SKILL.md files.read does not mention %q, which the code reads — advertised != actual (CLAWHUB_STANDARDS §4)", want)
+		}
+	}
+	// Everything the binary writes: the token cache (auth.Save), library.json
+	// (library --out via writeJSONFile), and config.json (config set → setConfigKey).
+	for _, want := range []string{"token", "library.json", "config.json"} {
+		if !strings.Contains(writes, want) {
+			t.Errorf("SKILL.md files.write does not mention %q, which the code writes — advertised != actual (CLAWHUB_STANDARDS §4)", want)
+		}
+	}
+}
+
 // TestSkillDocPromisesNoShellOut backs the same §0 cornerstone (and
 // CLAWHUB_STANDARDS §4/§5): the skill advertises `requires.bins: []` — a single
 // static binary that never shells out — so no production Go source may import

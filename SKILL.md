@@ -18,11 +18,13 @@ metadata:
         - "Speediance cloud API (HTTPS) — authentication, workout history, exercise catalog, program creation"
       files.read:
         - "config.json — optional credential/config file (working directory, or your OS user-config dir)"
+        - ".env — optional env file in the working directory; only the documented SPEEDIANCE_* keys are read (parsed to a map, never exported into the process environment)"
         - "token cache — cached session token in your OS user-cache dir by default (non-roaming); path overridable via SPEEDIANCE_TOKEN_CACHE or the token_cache_path config key. A legacy .token.json in the working directory is read once to migrate it."
         - "plan JSON files passed to the push command"
       files.write:
         - "token cache — session token written after login and refreshed automatically; in your OS user-cache dir by default (non-roaming; override via SPEEDIANCE_TOKEN_CACHE or token_cache_path). A legacy .token.json in the working directory is relocated here and then removed."
-        - "library.json — exercise catalog dump (library command)"
+        - "library.json — exercise catalog dump (library command; every run writes the full catalog to --out, default library.json)"
+        - "config.json — written by the config set command (owner-only permissions)"
     requires:
       bins: []
       env:
@@ -201,7 +203,10 @@ A program session:
 Notes for consumers:
 
 - **Auto-detection is built in** — no caller knowledge of the session type is
-  needed. `session`/`today` probe the program namespace, then the free namespace.
+  needed. `session <id>` probes the program namespace and falls back to free;
+  `today` picks each session's probe order from the day's record list (which
+  carries the authoritative type — free-first for non-program types), with the
+  same fallback. The result shape is identical either way.
 - **`weight` is never invented.** There is no synthesized per-set weight. For a
   program, the real per-rep weights are in `trainingInfoDetail.weights[]` (already
   per attachment, so a single-handle average is just their mean); a mid-set drop
@@ -221,7 +226,8 @@ Notes for consumers:
 - **Empty shape.** `info` is `object | null`; `detail` is `array | null`. These are
   the verbatim endpoint payloads (never normalized), so treat **both `null` and
   `[]`** as "no rows" — e.g. `if not detail`. In practice `detail` is a populated
-  array for `kind:"program"`, `[]` for `kind:"free"`, and `null` only for `kind:""`.
+  array for `kind:"program"`, `[]` for a freestyle Free Lift, **populated** for a
+  guided free-namespace session (see above), and `null` only for `kind:""`.
 - **No flag unlocks data** — the endpoints return it, so the CLI returns it. There
   is no `--telemetry`.
 
@@ -237,6 +243,8 @@ speediance-cli library                           # save full catalog to library.
 ```
 
 Returns `[{id, name, muscle, tab}]`. The `id` is required for plan JSON.
+Every run saves the full catalog to `--out` (default `library.json`) — `--search`
+filters only the stdout view, it does not narrow the saved file.
 A committed `library.json` snapshot ships with the repo (Gym Monster v1) for offline
 browsing — regenerate with `speediance-cli library` to get the freshest catalog or a
 different device's exercises.

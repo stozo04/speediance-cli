@@ -52,3 +52,12 @@ account behavior is unchanged; fixture/race tests cover the existing security gu
 Windows Unix-permission assertions remain platform-inapplicable where the existing
 suite says so; Linux CI runs them. Setup/credential ordering in the unchanged published
 skill remains tracked by existing PR #26; this audit does not duplicate its rewrite.
+
+## Final CI follow-up
+
+Linux build/race tests passed. CI lint initially failed because stable advanced to
+Go 1.27.1 while the existing v2.12.2 linter was built with Go 1.26 and could not
+parse the new standard library. Pinned only the lint lane to 1.26.x, matching the
+locally verified Go 1.26.4/linter v2.12.2 pair. Build/race tests still use stable;
+all lint rules and guards are unchanged. Updated the release playbook to keep
+the pair explicit. This fixes the check environment without suppressing a finding.

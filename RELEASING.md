@@ -177,8 +177,9 @@ end up with two different "v1.0.1"s, which is the thing versioning exists to pre
 - **Tags must start with `v`** — the release workflow only triggers on `v*`.
 - **golangci-lint vs. toolchain:** golangci-lint embeds the Go type-checker of the Go
   version it was built with, so the linter must be built with a Go **≥** the toolchain
-  it lints under. `ci.yml`'s lint job runs on `stable` with golangci-lint `v2.12.2`
-  (built with go1.26). If you bump the `go` directive in `go.mod` past the linter's
+  it lints under. `ci.yml`'s lint job pins Go `1.26.x` with golangci-lint `v2.12.2`
+  (built with go1.26); build/test still run on `stable`. Upgrade the lint
+  toolchain and linter together. If you bump the `go` directive in `go.mod` past the linter's
   build version, bump `version:` in the lint job too, or it panics with
   `file requires newer Go version ... (built with ...)`.
 - **GoReleaser runs `go mod tidy`** before building — keep `go.mod`/`go.sum` tidy or it

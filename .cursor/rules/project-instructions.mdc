@@ -1,0 +1,11 @@
+---
+description: Shared project instructions
+alwaysApply: true
+---
+
+Read and follow the shared instructions before working.
+
+@docs/OPERATING_INSTRUCTIONS.md
+@docs/PROJECT_INSTRUCTIONS.md
+
+@docs/MACHINE_CONTRACT.md

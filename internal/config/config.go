@@ -291,7 +291,8 @@ func (c *Config) RequireCredentials() error {
 			"or add \"email\"/\"password\" to config.json. config.json is resolved from "+
 			"--config / %s, then ./%s, then <user-config-dir>/%s/%s (resolved this run: %s)",
 		ErrMissingCredentials, EnvEmail, EnvPassword,
-		EnvConfig, defaultConfigName, appUserSubdir, defaultConfigName, c.ConfigPath)
+		EnvConfig, defaultConfigName, appUserSubdir, defaultConfigName, c.ConfigPath,
+	)
 }
 
 // DeviceWarning returns a non-empty warning string when a non-GM1 device is

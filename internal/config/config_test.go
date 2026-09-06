@@ -331,7 +331,8 @@ func TestDotEnvDoesNotInjectForeignEnv(t *testing.T) {
 		"SPEEDIANCE_EMAIL=ok@b.com\n"+
 			"LD_PRELOAD=/tmp/evil.so\n"+
 			"PATH=/evil/bin\n"+
-			pathProbe+"=injected\n"), 0o600); err != nil {
+			pathProbe+"=injected\n",
+	), 0o600); err != nil {
 		t.Fatal(err)
 	}
 

@@ -47,6 +47,14 @@ archives:
     files:
       - README.md
       - AGENTS.md
+      - SKILL.md
+      - docs/*.md
+      - .claude/CLAWHUB_STANDARDS.md
+      - .claude/CLI_CONVENTIONS.md
+      - CONTRIBUTING.md
+      - SECURITY.md
+      - GOAL.md
+      - RELEASING.md
       - LICENSE
 
 checksum:

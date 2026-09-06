@@ -56,8 +56,13 @@ snapshot: ## Cross-compile a local snapshot with GoReleaser (no publish)
 	goreleaser build --snapshot --clean
 
 .PHONY: check
-check: tidy fmt vet lint test-race ## Run the full pre-commit gauntlet
+check: check-agents tidy fmt vet lint test-race ## Run the full pre-commit gauntlet
 
 .PHONY: clean
 clean: ## Remove build artifacts
 	rm -rf bin dist coverage.out $(BINARY) $(BINARY).exe
+
+.PHONY: check-agents
+check-agents: ## Check shared instructions and skill mirrors (Python 3)
+	python scripts/sync-harness-skills.py --check
+	python scripts/test-sync-harness-skills.py

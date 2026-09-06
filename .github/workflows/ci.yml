@@ -17,6 +17,8 @@ jobs:
       - uses: actions/setup-go@v6
         with:
           go-version: stable
+      - name: Check agent instructions
+        run: make check-agents
       - name: Build
         run: go build ./...
       - name: Test (race)

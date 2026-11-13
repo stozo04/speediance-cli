@@ -56,16 +56,15 @@ func (a *App) apiClient(useCache bool) (*api.Client, *config.Config, error) {
 	return client, cfg, nil
 }
 
-// saveToken writes the client's (possibly refreshed) token back to the cache.
-// Failure is non-fatal — a command that already produced its output shouldn't
-// fail because the cache couldn't be written (GOAL.md §7).
-func (a *App) saveToken(cfg *config.Config, client *api.Client) {
+func (a *App) saveToken(cfg *config.Config, client *api.Client) bool {
 	if cfg.TokenCachePath == "" {
-		return
+		return false
 	}
 	if err := auth.Save(cfg.TokenCachePath, client.Token()); err != nil {
 		a.logger.Warn("could not write token cache", "path", cfg.TokenCachePath, "err", err)
+		return false
 	}
+	return true
 }
 
 // classify maps an API auth failure to exit code 2 (GOAL.md §12). Other errors

@@ -878,3 +878,37 @@ func TestNoLegacyWarningWhenExportedCacheIsThatFile(t *testing.T) {
 		}
 	}
 }
+
+func TestLoginDoesNotClaimCacheWhenCachingIsOff(t *testing.T) {
+	srv := fakeAPI(t)
+	defer srv.Close()
+
+	t.Chdir(t.TempDir())
+	clearSpeedianceEnv(t)
+	t.Setenv("SPEEDIANCE_EMAIL", "e@example.com")
+	t.Setenv("SPEEDIANCE_PASSWORD", "pw")
+	for _, k := range []string{"HOME", "XDG_CACHE_HOME", "XDG_CONFIG_HOME", "LocalAppData", "AppData"} {
+		t.Setenv(k, "")
+		_ = os.Unsetenv(k)
+	}
+	if _, err := os.UserCacheDir(); err == nil {
+		t.Skip("this platform still resolves a user cache dir without HOME")
+	}
+	baseURLOverride = srv.URL
+	t.Cleanup(func() { baseURLOverride = "" })
+
+	root := NewRootCmd()
+	var out, errb bytes.Buffer
+	root.SetOut(&out)
+	root.SetErr(&errb)
+	root.SetArgs([]string{"login"})
+	if err := root.Execute(); err != nil {
+		t.Fatalf("login failed: %v\nstderr: %s", err, errb.String())
+	}
+	if strings.Contains(out.String(), "Token cached to") {
+		t.Errorf("stdout = %q; login must not claim a cache it didn't write", out.String())
+	}
+	if !strings.Contains(out.String(), "Token not cached") {
+		t.Errorf("stdout = %q, want it to say the token wasn't cached", out.String())
+	}
+}

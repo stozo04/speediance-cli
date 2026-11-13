@@ -231,3 +231,13 @@ func TestAgentDocsRequireExplicitRequestBeforeReadingWorkouts(t *testing.T) {
 		}
 	}
 }
+
+var bareDotenvMention = regexp.MustCompile("(?i)(^|[^\\w`])\\.env(\\.(local|production|development))?(\\s|$|['\"])")
+
+func TestSkillFrontmatterFormatsDotenvAsCode(t *testing.T) {
+	for i, line := range strings.Split(skillFrontmatter(t), "\n") {
+		if bareDotenvMention.MatchString(line) {
+			t.Errorf("SKILL.md frontmatter line %d names the dotenv file without code formatting; write it as `.env` like the body does: %s", i+2, strings.TrimSpace(line))
+		}
+	}
+}

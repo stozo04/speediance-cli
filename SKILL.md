@@ -22,7 +22,7 @@ metadata:
         - "Speediance cloud API (HTTPS) — authentication, workout history, exercise catalog, program creation"
       files.read:
         - "config.json — optional credential/config file (working directory, or your OS user-config dir)"
-        - ".env — optional env file in the working directory; only the SPEEDIANCE_EMAIL, SPEEDIANCE_PASSWORD, SPEEDIANCE_REGION and SPEEDIANCE_DEVICE_TYPE keys are read (parsed to a map, never exported into the process environment); the path keys SPEEDIANCE_CONFIG and SPEEDIANCE_TOKEN_CACHE are ignored there"
+        - "`.env` — optional env file in the working directory; only the SPEEDIANCE_EMAIL, SPEEDIANCE_PASSWORD, SPEEDIANCE_REGION and SPEEDIANCE_DEVICE_TYPE keys are read (parsed to a map, never exported into the process environment); the path keys SPEEDIANCE_CONFIG and SPEEDIANCE_TOKEN_CACHE are ignored there"
         - "token cache — cached session token in your OS user-cache dir by default (non-roaming); path overridable via an exported SPEEDIANCE_TOKEN_CACHE, or the token_cache_path key of a config.json given by --config, SPEEDIANCE_CONFIG or the user-config dir (ignored in a working-directory config.json). A legacy .token.json in the working directory is never read; the CLI only warns that it exists."
         - "plan JSON files passed to the push command"
       files.write:
@@ -56,10 +56,10 @@ metadata:
         description: "Device type integer — 1 = Gym Monster v1 (default, tested). Gym Monster 2 is untested; try 2 if exercises look wrong."
         required: false
       - name: SPEEDIANCE_CONFIG
-        description: "Path to config.json (overrides discovery: working dir, then OS user-config dir). Read from the exported environment only, never from .env"
+        description: "Path to config.json (overrides discovery: working dir, then OS user-config dir). Read from the exported environment only."
         required: false
       - name: SPEEDIANCE_TOKEN_CACHE
-        description: "Override the token cache file location (default: OS user-cache dir). Read from the exported environment only, never from .env"
+        description: "Override the token cache file location (default: OS user-cache dir). Read from the exported environment only."
         required: false
 ---
 
@@ -347,4 +347,5 @@ layout.
 - **Dry-run first**: always use `--dry-run` before `push` when authoring new programs to
   confirm exercise IDs resolved correctly.
 - If an endpoint breaks after a Speediance app update, all API calls live in
-  `internal/api` — that's the single place to patch.
+  `internal/api` in the [source repo](https://github.com/stozo04/speediance-cli) — that's the
+  single place to patch.

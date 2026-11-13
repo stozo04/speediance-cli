@@ -1,4 +1,7 @@
-*_test.go
+/cmd/
+/internal/
+/go.mod
+/go.sum
 /testdata/
 /scripts/
 /library.json

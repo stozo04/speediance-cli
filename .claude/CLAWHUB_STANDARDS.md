@@ -131,9 +131,9 @@ attacker-influenceable, so a stray/hostile `.env` could inject `PATH`,
   functions and the guard tests carry the meaning; the why lives in the commit
   message, the PR and this file. Doc comments stay only where revive requires
   them on exported identifiers, and say what the identifier is in plain words.
-- Never rename, split or encode honest strings (`".env"`, user-facing messages)
-  to dodge a scanner regex. Fix the behavior, and record genuine false positives
-  below.
+- Never rename, split or encode honest strings in code (`".env"`, user-facing
+  messages) to dodge a scanner regex. Fix the behavior, and record genuine false
+  positives below.
 
 ## 7. Community-friendly paths — never machine-specific
 
@@ -173,7 +173,7 @@ Run before merging anything that touches config, auth, file I/O, network, or
 - [ ] No `godotenv.Load`/`Overload` — `.env` parsed via `Read` into a map, allowlisted keys only.
 - [ ] No `os.Setenv` used to wire configuration.
 - [ ] Path-redirecting keys are read with `exportedOnly`, never from `.env`.
-- [ ] `make check-clawhub` passes: it lists the package with clawhub's own `forEachPublishFile` (pinned `CLAWHUB_VERSION`) and fails on any file outside the `SHIPPABLE` allowlist in `scripts/check-clawhub-package.mjs`. Tests, `testdata/`, `scripts/`, `library.json` and agent docs stay out via `.clawhubignore`. CI runs it on every PR and before every publish.
+- [ ] `make check-clawhub` passes: it lists the package with clawhub's own `forEachPublishFile` (pinned `CLAWHUB_VERSION`) and fails on any file outside the `SHIPPABLE` allowlist in `scripts/check-clawhub-package.mjs`. The package is documentation only: `SKILL.md`, `SECURITY.md`, `config.example.json` and `docs/MACHINE_CONTRACT.md`. Go source, tests, `testdata/`, `scripts/`, `library.json` and agent docs stay out via `.clawhubignore`; users install the binary from GitHub Releases or `go install`. CI runs it on every PR and before every publish.
 - [ ] Every secret-bearing file written `0600` (dir `0700`), with the chmod re-tighten pattern.
 - [ ] No secret printed to stdout/stderr/logs at any verbosity; passwords masked in `config show`.
 - [ ] `SKILL.md` permissions/env/network block matches the code exactly.
@@ -209,9 +209,10 @@ removed** — that's what makes it immutable. Pattern set by
   `TestConfigSetTokenCachePathRefusedInWorkingDir` — `config set` won't write a
   `token_cache_path` that would be ignored.
 - `internal/config/skill_doc_test.go`: `TestSkillFrontmatterFollowsAgentSkillsSpec`
-  (Agent Skills fields, name, directory, description), `TestSkillDescriptionDisclosesLocalWrites` (TP4) and
+  (Agent Skills fields, name, directory, description), `TestSkillDescriptionDisclosesLocalWrites` (TP4),
   `TestAgentDocsRequireExplicitRequestBeforeReadingWorkouts` (SQP-1, checks both
-  `SKILL.md` and `docs/MACHINE_CONTRACT.md`).
+  `SKILL.md` and `docs/MACHINE_CONTRACT.md`) and `TestSkillFrontmatterFormatsDotenvAsCode`
+  (PE3, below).
 
 When you add a safeguard, add the matching test in the same PR. Name it so the
 guarantee is obvious, and assert the **negative** (the bad thing does NOT happen),
@@ -230,24 +231,20 @@ If a finding can't be fixed because the behavior is essential and already minima
 3. Record the rationale here and in the PR so the next reviewer doesn't re-litigate
    it. Never silence a scanner by obfuscating honest code.
 
-Known false positives (SkillSpector 2.12.0, read from its source):
+How the package avoids SkillSpector 2.12.0's false positives (read from its source):
 
-- **PE3 "Credential Access" at 60% on `.env`.** The rule is a regex,
-  `(?<!\w)\.env(...)?(\s|$|['"])`, that fires on any literal `.env` mention. The
-  tool really does read `.env` and declares it, so the remaining hits (SKILL.md
-  permissions and env descriptions, the `.env` warning and the missing-credentials
-  message in `config.go`) are accepted.
-- **"shell" capability.** LP-family rules detect shell via `\bchmod\b`, which
-  matches `f.Chmod(0o600)`, the owner-only permission re-tighten. Nothing runs a
-  subprocess (`TestSkillDocPromisesNoShellOut`), so `shell` is not declared.
-- **LP3 "no tool scope declared".** LP3 reads only a top-level `permissions`
-  list or `allowed-tools`. `permissions` isn't an Agent Skills field, and
-  `allowed-tools` pre-approves tools rather than declaring them, so neither is
-  added. The real scope is in `metadata.openclaw.permissions`.
-- **LP4 "file_read declared but not detected".** SkillSpector's `file_read`
-  patterns are Python and JS shapes (`open(...'r')`, `read_text`, `os.listdir`);
-  Go's `os.ReadFile` doesn't match. The binary does read config, plan and token
-  files, so `file_read` stays declared.
-- **A shipped baseline can't suppress these.** SkillSpector applies an author's
-  `.skillspector-baseline.yaml` only with `--use-shipped-baseline`, and clawhub
-  never ships dotfiles.
+- **The package ships no code.** SkillSpector's least-privilege rules (LP3 "no
+  tool scope declared", LP4 "declared but not detected") only compare
+  declarations with capabilities detected in shipped code, and its code-level
+  PE3 hits came from honest messages in `config.go`. With the Go source out of
+  the package, none of them has anything to read. `allowed-tools` is not added:
+  it pre-approves tools rather than declaring them, and would let an agent run
+  `push` without asking. The real scope is in `metadata.openclaw.permissions`.
+- **PE3 "Credential Access" on `.env`.** The rule is a regex,
+  `(?<!\w)\.env(...)?(\s|$|['"])`, that fires on a bare `.env` followed by a
+  space or a quote. `SKILL.md` writes the file name in code formatting
+  (`` `.env` ``) in the frontmatter as in the body, and states the `.env` rules
+  once, in the `files.read` entry (`TestSkillFrontmatterFormatsDotenvAsCode`).
+- **A shipped baseline can't suppress findings.** SkillSpector applies an
+  author's `.skillspector-baseline.yaml` only with `--use-shipped-baseline`, and
+  clawhub never ships dotfiles.

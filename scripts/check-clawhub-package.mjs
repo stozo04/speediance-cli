@@ -7,11 +7,9 @@ const SHIPPABLE = [
   /^SECURITY\.md$/,
   /^config\.example\.json$/,
   /^docs\/MACHINE_CONTRACT\.md$/,
-  /^go\.(mod|sum)$/,
-  /^(cmd|internal)\/.+(?<!_test)\.go$/,
 ];
 
-const REQUIRED = ["SKILL.md", "go.mod", "cmd/speediance-cli/main.go"];
+const REQUIRED = ["SKILL.md"];
 
 function usage() {
   console.error("usage: check-clawhub-package.mjs <unpacked clawhub package dir> [repo root]");

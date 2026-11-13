@@ -11,8 +11,8 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/stozo04/speediance-cli/internal/config"
-	"github.com/stozo04/speediance-cli/internal/version"
+	"github.com/stozo04/speediance-cli/v2/internal/config"
+	"github.com/stozo04/speediance-cli/v2/internal/version"
 )
 
 // App holds process-wide state shared by every command: resolved config, a

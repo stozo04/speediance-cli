@@ -20,7 +20,7 @@ import (
 
 	"github.com/hashicorp/go-retryablehttp"
 
-	"github.com/stozo04/speediance-cli/internal/auth"
+	"github.com/stozo04/speediance-cli/v2/internal/auth"
 )
 
 // maxResponseBytes caps how much of a response body we read, guarding against a

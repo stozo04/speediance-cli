@@ -13,7 +13,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/stozo04/speediance-cli/internal/api"
+	"github.com/stozo04/speediance-cli/v2/internal/api"
 )
 
 // kgToAPI converts plan kilograms to the API's internal weight unit, per the

@@ -35,6 +35,13 @@ metadata:
       env:
         - SPEEDIANCE_EMAIL
         - SPEEDIANCE_PASSWORD
+    install:
+      - id: go
+        kind: go
+        module: github.com/stozo04/speediance-cli/v2/cmd/speediance-cli@latest
+        bins:
+          - speediance-cli
+        label: Install speediance-cli (go)
     envVars:
       - name: SPEEDIANCE_EMAIL
         description: Your Speediance / Gym Monster account email address
@@ -79,7 +86,7 @@ Install it one of two ways:
 #    https://github.com/stozo04/speediance-cli/releases
 
 # B) Or build/install with Go (1.24+):
-go install github.com/stozo04/speediance-cli/cmd/speediance-cli@latest
+go install github.com/stozo04/speediance-cli/v2/cmd/speediance-cli@latest
 ```
 
 Then authenticate:

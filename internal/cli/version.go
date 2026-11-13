@@ -3,7 +3,7 @@ package cli
 import (
 	"github.com/spf13/cobra"
 
-	"github.com/stozo04/speediance-cli/internal/version"
+	"github.com/stozo04/speediance-cli/v2/internal/version"
 )
 
 // newVersionCmd implements `version [--json]` (GOAL.md §9.8). The root also

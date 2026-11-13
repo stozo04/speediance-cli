@@ -48,6 +48,12 @@ Rule of thumb: ask *"would this surprise or break someone already using v1.0.0?"
 - No, but it's new → **MINOR**
 - No, it's just a fix → **PATCH**
 
+A **MAJOR** bump past v1 also renames the Go module: v2.x lives at
+`github.com/stozo04/speediance-cli/v2`, so v3.0.0 needs `/v3` in `go.mod`, every import,
+the `go install` commands and `SKILL.md`'s `metadata.openclaw.install` in the PR **before**
+the tag. Without it the Go proxy rejects the tag ("module path must match major version")
+and `go install …@latest` keeps serving the old major.
+
 ---
 
 ## When SHOULD I cut a release?
@@ -149,6 +155,9 @@ gh release view v1.0.0 --json tagName,isDraft,isPrerelease,assets
 gh release download v1.0.0 --pattern "*Windows_x86_64*" --dir /tmp/verify
 cd /tmp/verify && unzip -o speediance-cli_Windows_x86_64.zip
 ./speediance-cli.exe version           # should print: 1.0.0 (commit ..., go...)
+
+# Prove `go install …@latest` serves this release (the proxy can lag a few minutes):
+GOPROXY=https://proxy.golang.org go list -m github.com/stozo04/speediance-cli/v2@latest
 
 # Confirm the download isn't corrupted (fingerprint must match):
 gh release download v1.0.0 --pattern "checksums.txt" --dir /tmp/verify

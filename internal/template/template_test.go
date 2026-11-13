@@ -13,9 +13,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/stozo04/speediance-cli/internal/api"
-	"github.com/stozo04/speediance-cli/internal/auth"
-	"github.com/stozo04/speediance-cli/internal/template"
+	"github.com/stozo04/speediance-cli/v2/internal/api"
+	"github.com/stozo04/speediance-cli/v2/internal/auth"
+	"github.com/stozo04/speediance-cli/v2/internal/template"
 )
 
 // fakeServer mirrors the rules used to generate the golden payloads

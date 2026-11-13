@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/stozo04/speediance-cli/internal/workout"
+	"github.com/stozo04/speediance-cli/v2/internal/workout"
 )
 
 // FetchWorkouts returns completed sessions over the last `days` days (GOAL.md

@@ -14,8 +14,8 @@ import (
 	"os"
 	"os/signal"
 
-	"github.com/stozo04/speediance-cli/internal/cli"
-	"github.com/stozo04/speediance-cli/internal/version"
+	"github.com/stozo04/speediance-cli/v2/internal/cli"
+	"github.com/stozo04/speediance-cli/v2/internal/version"
 )
 
 // Set by GoReleaser via -ldflags "-X main.version=... -X main.commit=... -X

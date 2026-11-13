@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stozo04/speediance-cli/internal/workout"
+	"github.com/stozo04/speediance-cli/v2/internal/workout"
 )
 
 func TestParseRecordsFallbacks(t *testing.T) {

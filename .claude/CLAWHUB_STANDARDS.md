@@ -109,8 +109,12 @@ attacker-influenceable, so a stray/hostile `.env` could inject `PATH`,
   upstream credit line in `SKILL.md`; it's attribution, not a license term.
 - `requires.bins` lists exactly `speediance-cli`: OpenClaw only shows the skill
   when that binary is on `PATH`. The binary itself needs no other tool and never
-  shells out (`TestSkillDocPromisesNoShellOut`). Add an OpenClaw `install` entry
-  (`kind: go`) only once `go install …@latest` resolves to the current release.
+  shells out (`TestSkillDocPromisesNoShellOut`).
+- `metadata.openclaw.install` has one `kind: go` entry whose `module` is
+  `github.com/stozo04/speediance-cli/v2/cmd/speediance-cli@latest`. The module
+  path carries the major version (`/v2`), so `@latest` resolves to the newest v2
+  tag. A future v3 renames the module to `/v3` and updates this entry, the
+  install commands and every import in the same PR.
 
 ## 5. No code execution / injection surfaces
 

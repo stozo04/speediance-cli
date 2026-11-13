@@ -564,8 +564,8 @@ Rewrite the three docs so they describe the Go tool — **drop the `python3` req
 - **README.md** — install via release binary / `go install github.com/stozo04/speediance-cli/cmd/speediance-cli@latest`; same command examples; keep the GM1/GM2 + unofficial-API + credits notes.
 - **AGENTS.md** — same command surface and plan schema; replace pip/clone-Python setup with binary
   download / `go install`; keep the stdout-parseable + secrets-gitignored conventions.
-- **SKILL.md** — update `requires.bins` from `python3` to none (bundled binary) or document the
-  `go install`/download step; keep `envVars`, permissions, and emoji. The auto-publish Action stays.
+- **SKILL.md** — `requires.bins` lists `speediance-cli` (replacing `python3`) and the
+  `go install`/download step is documented; keep `envVars`, permissions, and emoji. The auto-publish Action stays.
 - Carry over `library.json`, `LICENSE` (MIT), `config.example.json`, `.env.example`, and the
   `plans/` examples (still gitignore `plans/`).
 

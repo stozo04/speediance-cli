@@ -4,6 +4,9 @@ on:
   push:
     branches: [main]
   pull_request:
+  schedule:
+    - cron: "17 6 * * 1"
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -54,3 +57,16 @@ jobs:
           node-version: "22"
       - name: Check what clawhub would publish
         run: make check-clawhub
+
+  agent-skills-spec:
+    name: agent skills spec
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+      - name: Validate every skill copy with the upstream skills-ref (tracks spec updates)
+        run: |
+          for harness in .claude .codex .cursor; do
+            pipx run --spec "git+https://github.com/agentskills/agentskills#subdirectory=skills-ref" \
+              skills-ref validate "$harness/skills/speediance"
+          done

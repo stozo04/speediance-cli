@@ -9,12 +9,9 @@ description: >
   data. It writes local files only in these cases: the session token cache; config.json when you
   run `config set`, which stores the value you give it (including a password) as plain JSON with
   owner-only permissions; and the exercise catalog that the `library` command saves (default
-  library.json). Ships as a single static binary — no Python or other runtime required.
-permissions:
-  - network
-  - env
-  - file_read
-  - file_write
+  library.json). Ships as a single static binary — no Python or other runtime required. Use when
+  the user asks for their Speediance or Gym Monster workout data, wants to look up exercises, or
+  wants to create a training program on the machine.
 metadata:
   openclaw:
     emoji: 🏋️
@@ -33,7 +30,8 @@ metadata:
         - "library.json — exercise catalog dump (library command; every run writes the full catalog to --out, default library.json)"
         - "config.json — written by the config set command (owner-only permissions)"
     requires:
-      bins: []
+      bins:
+        - speediance-cli
       env:
         - SPEEDIANCE_EMAIL
         - SPEEDIANCE_PASSWORD

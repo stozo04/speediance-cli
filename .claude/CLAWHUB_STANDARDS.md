@@ -7,6 +7,12 @@ looks for credential mishandling, privilege escalation, excessive permissions,
 and risky patterns. Follow these rules so a real change never trips a real
 finding, and so the few false positives are easy to defend.
 
+> **Precedence:** OpenClaw's skill format (docs.openclaw.ai/clawhub/skill-format)
+> and the Agent Skills spec it builds on (agentskills.io/specification) come
+> first. Never break either to silence a scanner heuristic; record the finding
+> as a known false positive instead. CI checks the spec on every PR and weekly,
+> so a tightened standard fails the build.
+
 > **Golden rule:** a credential-collecting tool *will* draw scanner attention.
 > Our job is to make every credential/permission/network behavior **minimal,
 > documented, and provable with a test** — so any finding is either fixed or
@@ -80,10 +86,13 @@ attacker-influenceable, so a stray/hostile `.env` could inject `PATH`,
   with what the code does. Every declared `files.read`, `files.write`, and
   `network` entry must be real; remove anything the code no longer does, and add
   anything new **before** publishing.
-- Keep the top-level `permissions` list (`network`, `env`, `file_read`,
-  `file_write`) in sync too. SkillSpector's LP3 reads only that list (or
-  `allowed-tools`), never the nested `metadata.openclaw` block. Never add
-  `shell`: the binary doesn't shell out.
+- Top-level frontmatter keys are only the Agent Skills six: `name`,
+  `description`, `license`, `compatibility`, `metadata`, `allowed-tools`.
+  OpenClaw runtime fields live under `metadata.openclaw`.
+  (`TestSkillFrontmatterFollowsAgentSkillsSpec`; the upstream `skills-ref`
+  validator runs in CI.)
+- The `description` stays within 1024 characters and says when to use the
+  skill.
 - The `description` must name every local write: the token cache, `config set`
   storing values (including a password) in `config.json`, and the `library`
   catalog file. SkillSpector's TP4 compares the description with the code.
@@ -93,9 +102,10 @@ attacker-influenceable, so a stray/hostile `.env` could inject `PATH`,
 - Request the **narrowest** scope that works. No new file reads/writes, network
   hosts, env vars, or required binaries without updating `SKILL.md` and asking
   whether a narrower option exists.
-- `requires.bins` stays `[]` — we ship a single static binary. Don't introduce a
-  dependency on `sudo`, a shell, or an external tool. Never shell out to run
-  privileged commands.
+- `requires.bins` lists exactly `speediance-cli`: OpenClaw only shows the skill
+  when that binary is on `PATH`. The binary itself needs no other tool and never
+  shells out (`TestSkillDocPromisesNoShellOut`). Add an OpenClaw `install` entry
+  (`kind: go`) only once `go install …@latest` resolves to the current release.
 
 ## 5. No code execution / injection surfaces
 
@@ -189,8 +199,8 @@ removed** — that's what makes it immutable. Pattern set by
   print to stderr even with `LOG_LEVEL=error`.
   `TestConfigSetTokenCachePathRefusedInWorkingDir` — `config set` won't write a
   `token_cache_path` that would be ignored.
-- `internal/config/skill_doc_test.go`: `TestSkillDocDeclaresTopLevelPermissions`
-  (LP3), `TestSkillDescriptionDisclosesLocalWrites` (TP4) and
+- `internal/config/skill_doc_test.go`: `TestSkillFrontmatterFollowsAgentSkillsSpec`
+  (Agent Skills fields, name, directory, description), `TestSkillDescriptionDisclosesLocalWrites` (TP4) and
   `TestAgentDocsRequireExplicitRequestBeforeReadingWorkouts` (SQP-1, checks both
   `SKILL.md` and `docs/MACHINE_CONTRACT.md`).
 
@@ -221,6 +231,10 @@ Known false positives (SkillSpector 2.12.0, read from its source):
 - **"shell" capability.** LP-family rules detect shell via `\bchmod\b`, which
   matches `f.Chmod(0o600)`, the owner-only permission re-tighten. Nothing runs a
   subprocess (`TestSkillDocPromisesNoShellOut`), so `shell` is not declared.
+- **LP3 "no tool scope declared".** LP3 reads only a top-level `permissions`
+  list or `allowed-tools`. `permissions` isn't an Agent Skills field, and
+  `allowed-tools` pre-approves tools rather than declaring them, so neither is
+  added. The real scope is in `metadata.openclaw.permissions`.
 - **LP4 "file_read declared but not detected".** SkillSpector's `file_read`
   patterns are Python and JS shapes (`open(...'r')`, `read_text`, `os.listdir`);
   Go's `os.ReadFile` doesn't match. The binary does read config, plan and token

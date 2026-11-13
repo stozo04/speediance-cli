@@ -3,6 +3,7 @@ package cli
 import (
 	"errors"
 	"os"
+	"path/filepath"
 
 	"github.com/spf13/cobra"
 
@@ -93,10 +94,8 @@ func (a *App) warnAboutLegacyToken(cfg *config.Config) {
 		return
 	}
 	legacy := config.LegacyTokenCachePath()
-	if cfg.TokenCachePath == legacy {
-		return
-	}
-	if _, err := os.Stat(legacy); err != nil {
+	legacyInfo, err := os.Stat(legacy)
+	if err != nil || isActiveTokenCache(cfg.TokenCachePath, legacy, legacyInfo) {
 		return
 	}
 	if cfg.TokenCachePath == "" {
@@ -106,4 +105,16 @@ func (a *App) warnAboutLegacyToken(cfg *config.Config) {
 	}
 	fprintf(a.stderr, "warning: ignoring %s in the working directory; it is never read, so delete it. "+
 		"Sessions are cached at %s.\n", legacy, cfg.TokenCachePath)
+}
+
+func isActiveTokenCache(cachePath, legacy string, legacyInfo os.FileInfo) bool {
+	if cachePath == "" {
+		return false
+	}
+	if cacheInfo, err := os.Stat(cachePath); err == nil {
+		return os.SameFile(cacheInfo, legacyInfo)
+	}
+	cacheAbs, cacheErr := filepath.Abs(cachePath)
+	legacyAbs, legacyErr := filepath.Abs(legacy)
+	return cacheErr == nil && legacyErr == nil && cacheAbs == legacyAbs
 }

@@ -854,3 +854,27 @@ func TestLegacyTokenWarningShownEvenWithoutCredentials(t *testing.T) {
 		t.Errorf("stderr = %q, want the legacy-token warning even when credentials are missing", errb.String())
 	}
 }
+
+func TestNoLegacyWarningWhenExportedCacheIsThatFile(t *testing.T) {
+	cwd := t.TempDir()
+	t.Chdir(cwd)
+	clearSpeedianceEnv(t)
+	t.Setenv("SPEEDIANCE_EMAIL", "e@example.com")
+	t.Setenv("SPEEDIANCE_PASSWORD", "pw")
+	if err := os.WriteFile(filepath.Join(cwd, ".token.json"), []byte(`{"token":"T","user_id":"1"}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	for _, exported := range []string{"./.token.json", filepath.Join(cwd, ".token.json")} {
+		t.Setenv("SPEEDIANCE_TOKEN_CACHE", exported)
+		app := &App{stderr: &bytes.Buffer{}}
+		cfg, err := app.resolveConfig()
+		if err != nil {
+			t.Fatal(err)
+		}
+		app.warnAboutLegacyToken(cfg)
+		if got := app.stderr.(*bytes.Buffer).String(); got != "" {
+			t.Errorf("SPEEDIANCE_TOKEN_CACHE=%s: stderr = %q, want no warning about the active cache", exported, got)
+		}
+	}
+}

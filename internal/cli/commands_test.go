@@ -767,6 +767,7 @@ func TestVersionJSON(t *testing.T) {
 }
 
 func TestConfigWarningsReachStderr(t *testing.T) {
+	t.Setenv("LOG_LEVEL", "error")
 	dir := t.TempDir()
 	t.Chdir(dir)
 	clearSpeedianceEnv(t)

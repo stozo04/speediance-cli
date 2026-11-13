@@ -203,13 +203,14 @@ two-return `os.LookupEnv` to distinguish set-empty from unset.)
 
 ### File discovery (drop-in, with an optional modern fallback)
 
-1. `--config PATH` (new flag) or `SPEEDIANCE_CONFIG` env → explicit path.
+1. `--config PATH` (new flag) or an exported `SPEEDIANCE_CONFIG` (never from `.env`) → explicit path.
 2. else `config.json` in the current working directory (**preserves today's behavior** and the skill
    docs).
 3. *(enhancement)* else `<os.UserConfigDir>/speediance/config.json` — documented as optional, never
    required. Keep CWD as the default so existing agents/skills are unaffected.
 
-Token cache: `SPEEDIANCE_TOKEN_CACHE` env > `token_cache_path` config key >
+Token cache: exported `SPEEDIANCE_TOKEN_CACHE` (never from `.env`) > `token_cache_path` config key
+(only from a file found via step 1 or 3, never from the working-directory `config.json` of step 2) >
 `<os.UserCacheDir>/speediance/token.json` per-user default. (The original Python/Go default
 of `.token.json` in CWD was changed in **issue #17**: a CWD default leaked a live token into
 whatever repo the tool ran from, where a `git add -A` could commit it. An existing legacy

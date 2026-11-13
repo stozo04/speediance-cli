@@ -93,8 +93,18 @@ func (a *App) resolveConfig() (*config.Config, error) {
 	if err != nil {
 		return nil, withCode(ExitConfig, err)
 	}
+	a.warnConfig(cfg)
 	a.cfg = cfg
 	return cfg, nil
+}
+
+func (a *App) warnConfig(cfg *config.Config) {
+	if a.logger == nil {
+		return
+	}
+	for _, w := range cfg.Warnings {
+		a.logger.Warn(w)
+	}
 }
 
 // newLogger returns a slog text logger writing to w (stderr). Default level is

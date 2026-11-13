@@ -32,6 +32,14 @@ attacker-influenceable, so a stray/hostile `.env` could inject `PATH`,
 - **Allowlist, don't passthrough.** Only the documented `SPEEDIANCE_*` keys may
   flow from a file into config. A new env-driven setting means a new explicit
   key, never a wildcard.
+- **A working-directory file can't choose paths.** Keys that redirect where config
+  is read or a credential is written (`SPEEDIANCE_CONFIG`, `SPEEDIANCE_TOKEN_CACHE`)
+  are read from the real exported environment only (`exportedOnly`), never from
+  `.env`. The `token_cache_path` config key counts only when the config file came
+  from `--config`, an exported `SPEEDIANCE_CONFIG` or the user-config dir, never
+  from an implicit `./config.json` (`configSource.mayChoosePaths`). Every ignored
+  path setting adds a `Config.Warnings` entry printed to stderr. A new path-like
+  key follows the same rule.
 - **Do not call `os.Setenv` to wire config.** Resolve values into the `Config`
   struct; leave `os.Environ` untouched. (`os.Getenv`/`os.LookupEnv` for *reading*
   a real exported var is fine and expected.)
@@ -132,6 +140,8 @@ Run before merging anything that touches config, auth, file I/O, network, or
 
 - [ ] No `godotenv.Load`/`Overload` — `.env` parsed via `Read` into a map, allowlisted keys only.
 - [ ] No `os.Setenv` used to wire configuration.
+- [ ] Path-redirecting keys are read with `exportedOnly`, never from `.env`.
+- [ ] Anything new that isn't part of the skill (tests, fixtures, local data, build output) is listed in `.clawhubignore`.
 - [ ] Every secret-bearing file written `0600` (dir `0700`), with the chmod re-tighten pattern.
 - [ ] No secret printed to stdout/stderr/logs at any verbosity; passwords masked in `config show`.
 - [ ] `SKILL.md` permissions/env/network block matches the code exactly.
@@ -149,6 +159,12 @@ removed** — that's what makes it immutable. Pattern set by
 - `TestDotEnvDoesNotInjectForeignEnv` — a `.env` with `LD_PRELOAD`/`PATH`/sentinel
   keys must load the `SPEEDIANCE_*` value yet leak **none** of the foreign keys
   into `os.Environ`. Reintroducing `godotenv.Load()` fails this.
+- `TestDotEnvCannotRedirectPaths` — a `.env` setting `SPEEDIANCE_CONFIG` or
+  `SPEEDIANCE_TOKEN_CACHE` must change neither the config file nor the token
+  cache path, and must warn. `TestExportedEnvStillRedirectsPaths` keeps the exported override working.
+- `TestWorkingDirConfigCannotChooseTokenPath` — a `token_cache_path` in an implicit
+  `./config.json` is ignored with a warning; `TestUserDirConfigMayChooseTokenPath`
+  keeps it working from the user-config dir.
 - `TestDotEnvNeverMutatesProcessEnv` — even a *consumed* key reaches `Config`
   without appearing in the real environment.
 

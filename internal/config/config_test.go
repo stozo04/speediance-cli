@@ -157,9 +157,9 @@ func TestTokenCacheConfigKeyHonored(t *testing.T) {
 	t.Chdir(dir)
 	clearEnv(t)
 	want := filepath.Join(dir, "from-config.json")
-	writeConfig(t, dir, `{"token_cache_path":`+strconv.Quote(want)+`}`)
+	explicit := writeConfig(t, dir, `{"token_cache_path":`+strconv.Quote(want)+`}`)
 
-	cfg, err := Load(Options{})
+	cfg, err := Load(Options{ConfigPath: explicit})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -378,6 +378,165 @@ func TestDotEnvNeverMutatesProcessEnv(t *testing.T) {
 	// Value flowed via the map, so the real environment is still untouched.
 	if v, ok := os.LookupEnv(EnvRegion); ok {
 		t.Errorf("%s present in process env as %q after Load; .env consumption must not Setenv", EnvRegion, v)
+	}
+}
+
+func writeDotenv(t *testing.T, dir string, lines ...string) {
+	t.Helper()
+	body := strings.Join(lines, "\n") + "\n"
+	if err := os.WriteFile(filepath.Join(dir, ".env"), []byte(body), 0o600); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func hasWarningAbout(cfg *Config, key string) bool {
+	for _, w := range cfg.Warnings {
+		if strings.Contains(w, key) {
+			return true
+		}
+	}
+	return false
+}
+
+func TestDotEnvCannotRedirectPaths(t *testing.T) {
+	dir := t.TempDir()
+	t.Chdir(dir)
+	clearEnv(t)
+	setUserBaseDirs(t, t.TempDir())
+
+	plantedConfig := filepath.Join(dir, "planted-config.json")
+	plantedToken := filepath.Join(dir, "planted-token.json")
+	if err := os.WriteFile(plantedConfig, []byte(`{"email":"planted@b.com"}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	writeDotenv(t, dir, EnvConfig+"="+plantedConfig, EnvTokenCache+"="+plantedToken)
+
+	cfg, err := Load(Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.ConfigPath == plantedConfig || cfg.Email == "planted@b.com" {
+		t.Errorf("config path = %q, email = %q; .env must not choose the config file", cfg.ConfigPath, cfg.Email)
+	}
+	if cfg.TokenCachePath == plantedToken || !cfg.TokenCacheIsDefault {
+		t.Errorf("token cache = %q (default=%v); .env must not choose the token cache path", cfg.TokenCachePath, cfg.TokenCacheIsDefault)
+	}
+	for _, key := range []string{EnvConfig, EnvTokenCache} {
+		if !hasWarningAbout(cfg, key) {
+			t.Errorf("no warning about ignored %s in .env; warnings = %q", key, cfg.Warnings)
+		}
+	}
+}
+
+func TestExportedPathKeysBeatDotEnvWithoutWarning(t *testing.T) {
+	dir := t.TempDir()
+	t.Chdir(dir)
+	clearEnv(t)
+
+	exportedToken := filepath.Join(dir, "exported-token.json")
+	writeDotenv(t, dir, EnvTokenCache+"="+filepath.Join(dir, "planted-token.json"))
+	t.Setenv(EnvTokenCache, exportedToken)
+
+	cfg, err := Load(Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.TokenCachePath != exportedToken {
+		t.Errorf("token cache = %q, want exported %q", cfg.TokenCachePath, exportedToken)
+	}
+	if hasWarningAbout(cfg, EnvTokenCache) {
+		t.Errorf("unexpected warning when %s is exported: %q", EnvTokenCache, cfg.Warnings)
+	}
+}
+
+func TestEmptyExportedTokenCacheFallsBackToDefault(t *testing.T) {
+	t.Chdir(t.TempDir())
+	clearEnv(t)
+	t.Setenv(EnvTokenCache, "")
+
+	cfg, err := Load(Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.TokenCachePath == "" || !cfg.TokenCacheIsDefault {
+		t.Errorf("token cache = %q (default=%v); an empty export must fall back to the default", cfg.TokenCachePath, cfg.TokenCacheIsDefault)
+	}
+}
+
+func TestWorkingDirConfigCannotChooseTokenPath(t *testing.T) {
+	dir := t.TempDir()
+	t.Chdir(dir)
+	clearEnv(t)
+	setUserBaseDirs(t, t.TempDir())
+
+	planted := filepath.Join(dir, "planted-token.json")
+	writeConfig(t, dir, `{"email":"cwd@b.com","token_cache_path":`+strconv.Quote(planted)+`}`)
+
+	cfg, err := Load(Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Email != "cwd@b.com" {
+		t.Errorf("email = %q, want cwd@b.com (the rest of ./config.json still applies)", cfg.Email)
+	}
+	if cfg.TokenCachePath == planted || !cfg.TokenCacheIsDefault {
+		t.Errorf("token cache = %q (default=%v); ./config.json must not choose the token cache path", cfg.TokenCachePath, cfg.TokenCacheIsDefault)
+	}
+	if !hasWarningAbout(cfg, "token_cache_path") {
+		t.Errorf("no warning about ignored token_cache_path; warnings = %q", cfg.Warnings)
+	}
+}
+
+func TestUserDirConfigMayChooseTokenPath(t *testing.T) {
+	t.Chdir(t.TempDir())
+	clearEnv(t)
+	base := t.TempDir()
+	setUserBaseDirs(t, base)
+	userConfigDir, err := os.UserConfigDir()
+	if err != nil {
+		t.Fatal(err)
+	}
+	appDir := filepath.Join(userConfigDir, "speediance")
+	if err := os.MkdirAll(appDir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	want := filepath.Join(base, "chosen-token.json")
+	writeConfig(t, appDir, `{"token_cache_path":`+strconv.Quote(want)+`}`)
+
+	cfg, err := Load(Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.TokenCachePath != want || cfg.TokenCacheIsDefault {
+		t.Errorf("token cache = %q (default=%v), want %q from the user-config-dir file", cfg.TokenCachePath, cfg.TokenCacheIsDefault, want)
+	}
+	if len(cfg.Warnings) != 0 {
+		t.Errorf("unexpected warnings: %q", cfg.Warnings)
+	}
+}
+
+func TestExportedEnvStillRedirectsPaths(t *testing.T) {
+	dir := t.TempDir()
+	t.Chdir(dir)
+	clearEnv(t)
+
+	exportedConfig := filepath.Join(dir, "exported-config.json")
+	exportedToken := filepath.Join(dir, "exported-token.json")
+	if err := os.WriteFile(exportedConfig, []byte(`{"email":"exported@b.com"}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv(EnvConfig, exportedConfig)
+	t.Setenv(EnvTokenCache, exportedToken)
+
+	cfg, err := Load(Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.ConfigPath != exportedConfig || cfg.Email != "exported@b.com" {
+		t.Errorf("config path = %q, email = %q; want the exported %s", cfg.ConfigPath, cfg.Email, EnvConfig)
+	}
+	if cfg.TokenCachePath != exportedToken {
+		t.Errorf("token cache = %q, want exported %q", cfg.TokenCachePath, exportedToken)
 	}
 }
 

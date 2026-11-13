@@ -1,9 +1,4 @@
 // Package config resolves runtime configuration and credential discovery.
-//
-// Precedence (GOAL.md §7), lowest to highest: built-in defaults < config.json <
-// environment variables < command flags. The names of every env var and every
-// JSON key are part of the external contract and must not be renamed — existing
-// users and the ClawHub skill depend on them.
 package config
 
 import (
@@ -17,7 +12,7 @@ import (
 	"github.com/joho/godotenv"
 )
 
-// Environment variable names (frozen — GOAL.md §7).
+// Environment variable names, a frozen external contract.
 const (
 	EnvEmail      = "SPEEDIANCE_EMAIL"
 	EnvPassword   = "SPEEDIANCE_PASSWORD"
@@ -27,31 +22,19 @@ const (
 	EnvTokenCache = "SPEEDIANCE_TOKEN_CACHE"
 )
 
-// Defaults (GOAL.md §7).
+// Built-in defaults.
 const (
 	DefaultRegion     = "Global"
-	DefaultDeviceType = 1 // Gym Monster 1 — the only tested device.
+	DefaultDeviceType = 1
 
 	defaultConfigName = "config.json"
 
-	// appUserSubdir is the per-user application directory name, shared by both
-	// per-user locations but placed under the purpose-appropriate base: the token
-	// cache under os.UserCacheDir (non-roaming), config under os.UserConfigDir.
-	// Either way it keeps state out of the — frequently version-controlled —
-	// working directory. (CLI_CONVENTIONS.md §1, §2.)
-	appUserSubdir = "speediance"
-	// userTokenName is the token cache filename inside the per-user app dir.
-	userTokenName = "token.json"
-	// legacyTokenName is the pre-#17 default: a ".token.json" dropped in the
-	// current working directory. That default leaked a live credential into
-	// whatever repo the tool ran from (a stray `git add -A` could commit it), so
-	// it is no longer the default — it is kept only so an existing cache there
-	// can be migrated up to the per-user location instead of forcing a re-login.
+	appUserSubdir   = "speediance"
+	userTokenName   = "token.json"
 	legacyTokenName = ".token.json"
 )
 
-// ErrMissingCredentials is returned by RequireCredentials when email or
-// password could not be resolved from any source.
+// ErrMissingCredentials reports that email or password could not be resolved.
 var ErrMissingCredentials = errors.New("missing credentials")
 
 // Config is the fully resolved configuration handed to commands.
@@ -61,60 +44,40 @@ type Config struct {
 	Region     string
 	DeviceType int
 
-	// ConfigPath is where config.json was loaded from, or where it would be
-	// written if it does not yet exist.
-	ConfigPath string
-	// ConfigExists reports whether ConfigPath was present on disk at load time.
-	ConfigExists bool
-	// TokenCachePath is the resolved location of the session token cache.
-	TokenCachePath string
-	// TokenCacheIsDefault reports that TokenCachePath came from the built-in
-	// per-user default rather than an explicit override (SPEEDIANCE_TOKEN_CACHE
-	// or the token_cache_path config key). It guards the one-time migration of a
-	// legacy working-directory .token.json (issue #17): an explicit override is
-	// always honored verbatim and never triggers migration.
+	ConfigPath          string
+	ConfigExists        bool
+	TokenCachePath      string
 	TokenCacheIsDefault bool
+
+	ConfigMayChoosePaths bool
+	Warnings             []string
 }
 
-// fileConfig mirrors config.json. Pointer fields distinguish "key present" from
-// "key absent" so an absent key falls through to the default rather than
-// overwriting it with a zero value.
+type configSource int
+
+const (
+	sourceWorkingDir configSource = iota
+	sourceExplicit
+	sourceUserDir
+)
+
+func (s configSource) mayChoosePaths() bool { return s != sourceWorkingDir }
+
 type fileConfig struct {
-	Email      *string `json:"email"`
-	Password   *string `json:"password"`
-	Region     *string `json:"region"`
-	DeviceType *int    `json:"device_type"`
-	// TokenCachePath maps the token_cache_path key. It is resolved separately
-	// from applyFile (in Load) because the token cache obeys env-over-file
-	// precedence; previously this key was advertised by `config show` but
-	// silently ignored by the loader (issue #17).
+	Email          *string `json:"email"`
+	Password       *string `json:"password"`
+	Region         *string `json:"region"`
+	DeviceType     *int    `json:"device_type"`
 	TokenCachePath *string `json:"token_cache_path"`
 }
 
-// Options carries inputs the caller already knows from flags, so config
-// resolution can honor flag precedence without importing cobra.
+// Options carries values the caller already knows from flags.
 type Options struct {
-	// ConfigPath is the value of the --config flag (empty if not set). It wins
-	// over SPEEDIANCE_CONFIG when choosing which file to read.
 	ConfigPath string
 }
 
-// Load resolves configuration from defaults, config.json, and environment
-// variables. Per-command flag overrides, when present, are applied by the
-// caller afterward, since those flags are not known here.
+// Load resolves configuration from defaults, config.json and the environment.
 func Load(opts Options) (*Config, error) {
-	// Parse a .env file from the working directory WITHOUT mutating the process
-	// environment, then consult only our own SPEEDIANCE_* keys (see envLayer).
-	//
-	// This is deliberate. godotenv.Load — the obvious alternative — exports EVERY
-	// key in .env into the live process environment, including unrelated and
-	// security-sensitive ones (PATH, LD_PRELOAD, HTTP_PROXY, …). Because a CLI's
-	// working directory is attacker-influenceable (an agent may run it anywhere),
-	// a stray or hostile .env could escalate into the tool's runtime. godotenv.Read
-	// returns the file as a map and changes no global state, so unknown keys are
-	// never applied. The documented feature is preserved: SPEEDIANCE_* values in
-	// .env still act as the env layer. A missing/unreadable .env yields a nil map
-	// and is a silent no-op.
 	dotenv, _ := godotenv.Read()
 
 	cfg := &Config{
@@ -122,12 +85,10 @@ func Load(opts Options) (*Config, error) {
 		DeviceType: DefaultDeviceType,
 	}
 
-	// 1. Locate and read config.json (if any).
-	path, err := discoverConfigPath(opts.ConfigPath, dotenv)
-	if err != nil {
-		return nil, err
-	}
+	path, source := discoverConfigPath(opts.ConfigPath)
 	cfg.ConfigPath = path
+	cfg.ConfigMayChoosePaths = source.mayChoosePaths()
+	cfg.Warnings = ignoredDotenvPathKeys(dotenv)
 
 	fc, exists, err := readFileConfig(path)
 	if err != nil {
@@ -136,38 +97,45 @@ func Load(opts Options) (*Config, error) {
 	cfg.ConfigExists = exists
 	applyFile(cfg, fc)
 
-	// 2. Environment overrides. A real exported var beats a .env entry, which in
-	// turn beats config.json — precedence stays flags > env > .env > file >
-	// defaults. (envLayer distinguishes set-empty from unset, like LookupEnv.)
 	applyEnv(cfg, dotenv)
 
-	// 3. Token cache location. Precedence mirrors the global contract: an explicit
-	// SPEEDIANCE_TOKEN_CACHE (real env or .env) wins, then the token_cache_path
-	// config key, then the per-user default. The default lives in the non-roaming
-	// per-user cache dir, OUTSIDE the working directory: a token cached in CWD is a
-	// live credential a routine `git add -A` could commit (issue #17), and a token
-	// in the roaming config dir can sync across machines (CLI_CONVENTIONS.md §1).
-	if v, ok := envLayer(dotenv, EnvTokenCache); ok {
-		cfg.TokenCachePath = v
-	} else if fc.TokenCachePath != nil && *fc.TokenCachePath != "" {
-		cfg.TokenCachePath = *fc.TokenCachePath
-	} else {
-		cfg.TokenCachePath = defaultTokenCachePath()
-		cfg.TokenCacheIsDefault = true
-	}
-
+	resolveTokenCachePath(cfg, fc, source)
 	return cfg, nil
 }
 
-// defaultTokenCachePath returns the per-user token cache location,
-// <os.UserCacheDir>/speediance/token.json. The cache base is deliberate: a token
-// is regenerable state, not config, and os.UserCacheDir is non-roaming
-// (Windows %LocalAppData%) — unlike os.UserConfigDir (%AppData%\Roaming), which
-// can sync a live credential across machines (CLI_CONVENTIONS.md §1). It also
-// resolves OUTSIDE the working directory so the credential can't be swept into a
-// commit (issue #17). If the cache base can't be determined (a rare, HOME-less
-// environment), it falls back to the legacy working-directory path so the tool
-// still functions.
+func resolveTokenCachePath(cfg *Config, fc fileConfig, source configSource) {
+	if v, ok := exportedOnly(EnvTokenCache); ok && v != "" {
+		cfg.TokenCachePath = v
+		return
+	}
+	if fc.TokenCachePath != nil && *fc.TokenCachePath != "" {
+		if source.mayChoosePaths() {
+			cfg.TokenCachePath = *fc.TokenCachePath
+			return
+		}
+		cfg.Warnings = append(cfg.Warnings, fmt.Sprintf(
+			"token_cache_path in %s is ignored: a working-directory config.json can't choose where the session token is written; "+
+				"pass --config, export %s or %s, or move the file to <user-config-dir>/%s/%s",
+			cfg.ConfigPath, EnvConfig, EnvTokenCache, appUserSubdir, defaultConfigName))
+	}
+	cfg.TokenCachePath = defaultTokenCachePath()
+	cfg.TokenCacheIsDefault = true
+}
+
+func ignoredDotenvPathKeys(dotenv map[string]string) []string {
+	var warnings []string
+	for _, key := range []string{EnvConfig, EnvTokenCache} {
+		if _, inDotenv := dotenv[key]; !inDotenv {
+			continue
+		}
+		if _, exported := exportedOnly(key); exported {
+			continue
+		}
+		warnings = append(warnings, fmt.Sprintf("%s in .env is ignored: path settings must be exported", key))
+	}
+	return warnings
+}
+
 func defaultTokenCachePath() string {
 	if dir, err := os.UserCacheDir(); err == nil {
 		return filepath.Join(dir, appUserSubdir, userTokenName)
@@ -175,40 +143,26 @@ func defaultTokenCachePath() string {
 	return legacyTokenName
 }
 
-// LegacyTokenCachePath is the pre-#17 default token cache location (.token.json
-// in the working directory). It is exported only so the CLI can find and migrate
-// an existing cache there up to the per-user default.
+// LegacyTokenCachePath is the pre-#17 token cache location, kept for migration.
 func LegacyTokenCachePath() string { return legacyTokenName }
 
-// discoverConfigPath implements GOAL.md §7 file discovery:
-//  1. --config flag or SPEEDIANCE_CONFIG env (explicit path; flag wins).
-//  2. config.json in the current working directory (default, preserves today's
-//     behavior and the skill docs).
-//  3. optional fallback: <UserConfigDir>/speediance/config.json, but only if it
-//     actually exists — never required.
-func discoverConfigPath(flagPath string, dotenv map[string]string) (string, error) {
+func discoverConfigPath(flagPath string) (string, configSource) {
 	if flagPath != "" {
-		return flagPath, nil
+		return flagPath, sourceExplicit
 	}
-	if v, ok := envLayer(dotenv, EnvConfig); ok && v != "" {
-		return v, nil
+	if v, ok := exportedOnly(EnvConfig); ok && v != "" {
+		return v, sourceExplicit
 	}
-
 	if _, err := os.Stat(defaultConfigName); err == nil {
-		return defaultConfigName, nil
+		return defaultConfigName, sourceWorkingDir
 	}
-
-	// Optional modern fallback: only adopt it if the file is actually there, so
-	// the CWD default stays authoritative for existing agents.
 	if dir, err := os.UserConfigDir(); err == nil {
 		alt := filepath.Join(dir, appUserSubdir, defaultConfigName)
 		if _, err := os.Stat(alt); err == nil {
-			return alt, nil
+			return alt, sourceUserDir
 		}
 	}
-
-	// Nothing on disk yet: keep the CWD path so `config set` writes there.
-	return defaultConfigName, nil
+	return defaultConfigName, sourceWorkingDir
 }
 
 func readFileConfig(path string) (fileConfig, bool, error) {
@@ -252,21 +206,12 @@ func applyEnv(cfg *Config, dotenv map[string]string) {
 		cfg.Region = v
 	}
 	if v, ok := envLayer(dotenv, EnvDeviceType); ok {
-		// Parse leniently: a malformed value falls back to the current value
-		// rather than failing the whole command, mirroring the Python tool's
-		// permissiveness.
 		if n, err := strconv.Atoi(v); err == nil {
 			cfg.DeviceType = n
 		}
 	}
 }
 
-// envLayer resolves one SPEEDIANCE_* setting from the environment layer: a real
-// exported variable wins; otherwise the value parsed from .env (if any) is used.
-// Only the explicit key passed in is ever consulted, so foreign keys present in
-// a .env file (PATH, LD_PRELOAD, …) are never read and can never reach the
-// process — this is the privilege-escalation guard. Like os.LookupEnv, a key
-// that is set-but-empty returns ("", true) and still overrides lower layers.
 func envLayer(dotenv map[string]string, key string) (string, bool) {
 	if v, ok := os.LookupEnv(key); ok {
 		return v, true
@@ -277,15 +222,15 @@ func envLayer(dotenv map[string]string, key string) (string, bool) {
 	return "", false
 }
 
-// RequireCredentials returns a friendly error (to be shown on stderr) when
-// email or password is missing after resolution. GOAL.md §7.
+func exportedOnly(key string) (string, bool) {
+	return os.LookupEnv(key)
+}
+
+// RequireCredentials returns ErrMissingCredentials naming every source it checked.
 func (c *Config) RequireCredentials() error {
 	if c.Email != "" && c.Password != "" {
 		return nil
 	}
-	// Name where we looked, in precedence order, so the caller can fix it without
-	// guessing — never a bare "missing credentials" (CLI_CONVENTIONS.md §5). No
-	// secret values are echoed.
 	return fmt.Errorf(
 		"%w: set %s and %s (exported env vars, or a .env in the working directory), "+
 			"or add \"email\"/\"password\" to config.json. config.json is resolved from "+
@@ -295,9 +240,7 @@ func (c *Config) RequireCredentials() error {
 	)
 }
 
-// DeviceWarning returns a non-empty warning string when a non-GM1 device is
-// configured. GM2 (device_type 2) is untested; the warning is carried forward
-// verbatim from the Python tool (GOAL.md §3, §7).
+// DeviceWarning returns a warning when the configured device is untested.
 func (c *Config) DeviceWarning() string {
 	if c.DeviceType != DefaultDeviceType {
 		return fmt.Sprintf("warning: device_type=%d is untested (only Gym Monster 1 / device_type=1 is verified)", c.DeviceType)

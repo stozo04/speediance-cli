@@ -7,7 +7,11 @@ import (
 	"strconv"
 
 	"github.com/spf13/cobra"
+
+	"github.com/stozo04/speediance-cli/internal/config"
 )
+
+const tokenCachePathKey = "token_cache_path"
 
 // configView is the stable shape emitted by `config show --json`. The password
 // is always blanked here — this view is a convenience, not a secret dump
@@ -95,6 +99,12 @@ func newConfigSetCmd(app *App) *cobra.Command {
 			cfg, err := app.resolveConfig()
 			if err != nil {
 				return err
+			}
+			if key == tokenCachePathKey && !cfg.ConfigMayChoosePaths {
+				return withCode(ExitUsage, fmt.Errorf(
+					"refusing to set %s in %s: a working-directory config.json can't choose where the session token is written; "+
+						"pass --config, export %s or %s, or use <user-config-dir>/speediance/config.json",
+					tokenCachePathKey, cfg.ConfigPath, config.EnvConfig, config.EnvTokenCache))
 			}
 			if err := setConfigKey(cfg.ConfigPath, key, value); err != nil {
 				return withCode(ExitConfig, err)

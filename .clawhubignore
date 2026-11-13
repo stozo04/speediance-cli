@@ -1,0 +1,13 @@
+*_test.go
+/testdata/
+/scripts/
+/library.json
+/config.json
+/REAL-SPEEDIANCE-JSON/
+/plans/
+/dist/
+/bin/
+/speediance-cli
+/speediance-cli.exe
+*.out
+coverage.txt

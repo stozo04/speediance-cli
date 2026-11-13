@@ -64,5 +64,5 @@ clean: ## Remove build artifacts
 
 .PHONY: check-agents
 check-agents: ## Check shared instructions and skill mirrors (Python 3)
-	python scripts/sync-harness-skills.py --check
-	python scripts/test-sync-harness-skills.py
+	python3 scripts/sync-harness-skills.py --check
+	python3 scripts/test-sync-harness-skills.py

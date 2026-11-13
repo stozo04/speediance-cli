@@ -765,3 +765,75 @@ func TestVersionJSON(t *testing.T) {
 		}
 	}
 }
+
+func TestConfigWarningsReachStderr(t *testing.T) {
+	dir := t.TempDir()
+	t.Chdir(dir)
+	clearSpeedianceEnv(t)
+	userBase := t.TempDir()
+	for _, k := range []string{"HOME", "XDG_CONFIG_HOME", "XDG_CACHE_HOME", "AppData", "LocalAppData"} {
+		t.Setenv(k, userBase)
+	}
+	planted := filepath.Join(dir, "planted-token.json")
+	if err := os.WriteFile(filepath.Join(dir, "config.json"),
+		[]byte(`{"token_cache_path":`+strconv.Quote(planted)+`}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	root := NewRootCmd()
+	var out, errb bytes.Buffer
+	root.SetOut(&out)
+	root.SetErr(&errb)
+	root.SetArgs([]string{"config", "path"})
+	if err := root.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(errb.String(), "token_cache_path") {
+		t.Errorf("stderr = %q, want a warning that token_cache_path was ignored", errb.String())
+	}
+	if strings.Contains(out.String(), planted) {
+		t.Errorf("stdout = %q; the planted token path must not be used", out.String())
+	}
+}
+
+func runConfigSet(t *testing.T, args ...string) (stderr string, err error) {
+	t.Helper()
+	dir := t.TempDir()
+	t.Chdir(dir)
+	clearSpeedianceEnv(t)
+	userBase := t.TempDir()
+	for _, k := range []string{"HOME", "XDG_CONFIG_HOME", "XDG_CACHE_HOME", "AppData", "LocalAppData"} {
+		t.Setenv(k, userBase)
+	}
+	root := NewRootCmd()
+	var out, errb bytes.Buffer
+	root.SetOut(&out)
+	root.SetErr(&errb)
+	root.SetArgs(args)
+	err = root.Execute()
+	return errb.String(), err
+}
+
+func TestConfigSetTokenCachePathRefusedInWorkingDir(t *testing.T) {
+	stderr, err := runConfigSet(t, "config", "set", "token_cache_path", "/tmp/elsewhere.json")
+	if err == nil {
+		t.Fatalf("config set token_cache_path succeeded in a working-directory config; stderr = %q", stderr)
+	}
+	if _, statErr := os.Stat("config.json"); statErr == nil {
+		t.Error("config.json was written despite the refusal")
+	}
+}
+
+func TestConfigSetTokenCachePathAllowedWithExplicitConfig(t *testing.T) {
+	explicit := filepath.Join(t.TempDir(), "explicit.json")
+	if _, err := runConfigSet(t, "--config", explicit, "config", "set", "token_cache_path", "/tmp/elsewhere.json"); err != nil {
+		t.Fatalf("config set with --config failed: %v", err)
+	}
+	data, err := os.ReadFile(explicit)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(data), "/tmp/elsewhere.json") {
+		t.Errorf("explicit config = %s, want token_cache_path written", data)
+	}
+}

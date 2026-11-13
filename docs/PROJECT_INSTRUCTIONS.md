@@ -91,7 +91,7 @@ Run `make check-agents` for instruction and skill changes (Python 3 is a develop
 check dependency only; the shipped CLI remains a single binary). Root `SKILL.md`
 is the published artifact; mirror its complete package into each harness after
 editing it. Reconcile all copies before choosing a repair source. Run
-`python scripts/sync-harness-skills.py --fix --from claude`, or select `cursor`/`codex`,
+`python3 scripts/sync-harness-skills.py --fix --from claude`, or select `cursor`/`codex`,
 then `make check-agents`. Preserve native settings and publishing triggers.
 
 Read `CONTRIBUTING.md`, `SECURITY.md`, and `RELEASING.md` for their applicable gates.

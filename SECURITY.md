@@ -20,7 +20,11 @@ This tool authenticates to your personal Speediance account. Treat these as secr
   on Windows, `~/.cache` on Linux, `~/Library/Caches` on macOS) — deliberately **outside** the working
   directory so a routine `git add -A` can't commit it, and in the **non-roaming** cache dir (not the
   roaming config dir) so a live credential isn't synced across machines. Override the path with
-  `SPEEDIANCE_TOKEN_CACHE` or the `token_cache_path` config key; `config path` shows where it resolved.
+  an exported `SPEEDIANCE_TOKEN_CACHE` or the `token_cache_path` config key; `config path` shows where it resolved.
+  Files in the working directory can't choose that path: `SPEEDIANCE_TOKEN_CACHE` and `SPEEDIANCE_CONFIG`
+  are ignored in `.env`, and `token_cache_path` is ignored in a working-directory `config.json` (it
+  counts only via `--config`, an exported `SPEEDIANCE_CONFIG`, or the user-config dir). The CLI warns
+  on stderr whenever it ignores one.
   A token left by an older version in a working-directory `.token.json` is relocated to the per-user
   location on first run.
 - **`.env`** may store the same credentials.

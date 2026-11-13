@@ -829,3 +829,28 @@ func TestConfigSetTokenCachePathAllowedWithExplicitConfig(t *testing.T) {
 		t.Errorf("explicit config = %s, want token_cache_path written", data)
 	}
 }
+
+func TestLegacyTokenWarningShownEvenWithoutCredentials(t *testing.T) {
+	cwd := t.TempDir()
+	t.Chdir(cwd)
+	clearSpeedianceEnv(t)
+	userBase := t.TempDir()
+	for _, k := range []string{"HOME", "XDG_CONFIG_HOME", "XDG_CACHE_HOME", "AppData", "LocalAppData"} {
+		t.Setenv(k, userBase)
+	}
+	if err := os.WriteFile(filepath.Join(cwd, ".token.json"), []byte(`{"token":"PLANTED"}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	root := NewRootCmd()
+	var out, errb bytes.Buffer
+	root.SetOut(&out)
+	root.SetErr(&errb)
+	root.SetArgs([]string{"workouts", "--json"})
+	if err := root.Execute(); err == nil {
+		t.Fatal("workouts succeeded without credentials")
+	}
+	if !strings.Contains(errb.String(), ".token.json") {
+		t.Errorf("stderr = %q, want the legacy-token warning even when credentials are missing", errb.String())
+	}
+}

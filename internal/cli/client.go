@@ -25,14 +25,13 @@ func (a *App) apiClient(useCache bool) (*api.Client, *config.Config, error) {
 	if err != nil {
 		return nil, nil, err
 	}
+	a.warnAboutLegacyToken(cfg)
 	if err := cfg.RequireCredentials(); err != nil {
 		return nil, nil, withCode(ExitConfig, err)
 	}
 	if w := cfg.DeviceWarning(); w != "" {
 		a.logger.Warn(w)
 	}
-
-	a.warnAboutLegacyToken(cfg)
 
 	var tok auth.Token
 	if useCache && cfg.TokenCachePath != "" {

@@ -102,8 +102,9 @@ func newConfigSetCmd(app *App) *cobra.Command {
 			}
 			if key == tokenCachePathKey && !cfg.ConfigMayChoosePaths {
 				return withCode(ExitUsage, fmt.Errorf(
-					"refusing to set %s in %s: a working-directory config.json can't choose where the session token is written; "+
-						"pass --config, export %s or %s, or use <user-config-dir>/speediance/config.json",
+					"refusing to set %s in %s: a working-directory config.json can't choose where the session token is written. "+
+						"Set it in another config file (pass --config, export %s, or use <user-config-dir>/speediance/config.json), "+
+						"or skip the key and export %s instead",
 					tokenCachePathKey, cfg.ConfigPath, config.EnvConfig, config.EnvTokenCache))
 			}
 			if err := setConfigKey(cfg.ConfigPath, key, value); err != nil {

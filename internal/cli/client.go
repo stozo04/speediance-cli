@@ -7,9 +7,9 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/stozo04/speediance-cli/internal/api"
-	"github.com/stozo04/speediance-cli/internal/auth"
-	"github.com/stozo04/speediance-cli/internal/config"
+	"github.com/stozo04/speediance-cli/v2/internal/api"
+	"github.com/stozo04/speediance-cli/v2/internal/auth"
+	"github.com/stozo04/speediance-cli/v2/internal/config"
 )
 
 // baseURLOverride, when non-empty, points the API client at a specific base URL

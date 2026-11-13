@@ -94,7 +94,7 @@ release:
     Download a binary from the assets below, or with Go:
 
     ```sh
-    go install github.com/stozo04/speediance-cli/cmd/speediance-cli@{{ .Tag }}
+    go install github.com/stozo04/speediance-cli/v2/cmd/speediance-cli@{{ .Tag }}
     ```
 
     See the bundled `SKILL.md` / `AGENTS.md` for usage and the JSON + exit-code contract.

@@ -19,7 +19,7 @@ extract, and put `speediance-cli` on your `PATH`.
 **Option B — install with Go** (1.24+):
 
 ```bash
-go install github.com/stozo04/speediance-cli/cmd/speediance-cli@latest
+go install github.com/stozo04/speediance-cli/v2/cmd/speediance-cli@latest
 ```
 
 This installs `speediance-cli` into `$(go env GOPATH)/bin`; ensure that's on your `PATH`.

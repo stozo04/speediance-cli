@@ -8,7 +8,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/stozo04/speediance-cli/internal/config"
+	"github.com/stozo04/speediance-cli/v2/internal/config"
 )
 
 const tokenCachePathKey = "token_cache_path"

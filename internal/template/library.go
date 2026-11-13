@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/stozo04/speediance-cli/internal/api"
+	"github.com/stozo04/speediance-cli/v2/internal/api"
 )
 
 // muscleChunkSize is how many ids are enriched per detail call (GOAL.md §9.4).

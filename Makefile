@@ -4,7 +4,7 @@
 BINARY      := speediance-cli
 PKG         := ./...
 MAIN        := ./cmd/speediance-cli
-LOCAL_PREFIX := github.com/stozo04/speediance-cli
+LOCAL_PREFIX := github.com/stozo04/speediance-cli/v2
 
 .DEFAULT_GOAL := help
 

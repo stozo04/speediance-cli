@@ -1,7 +1,7 @@
 # speediance-cli
 
 [![CI](https://github.com/stozo04/speediance-cli/actions/workflows/ci.yml/badge.svg)](https://github.com/stozo04/speediance-cli/actions/workflows/ci.yml)
-[![Go Reference](https://pkg.go.dev/badge/github.com/stozo04/speediance-cli.svg)](https://pkg.go.dev/github.com/stozo04/speediance-cli)
+[![Go Reference](https://pkg.go.dev/badge/github.com/stozo04/speediance-cli/v2.svg)](https://pkg.go.dev/github.com/stozo04/speediance-cli/v2)
 [![Go Report Card](https://goreportcard.com/badge/github.com/stozo04/speediance-cli)](https://goreportcard.com/report/github.com/stozo04/speediance-cli)
 [![Release](https://img.shields.io/github/v/release/stozo04/speediance-cli?sort=semver)](https://github.com/stozo04/speediance-cli/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
@@ -37,7 +37,7 @@ same `--json`).
 **With Go** (1.24+):
 
 ```bash
-go install github.com/stozo04/speediance-cli/cmd/speediance-cli@latest
+go install github.com/stozo04/speediance-cli/v2/cmd/speediance-cli@latest
 speediance-cli login
 ```
 

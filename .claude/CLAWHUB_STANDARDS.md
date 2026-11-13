@@ -32,6 +32,9 @@ attacker-influenceable, so a stray/hostile `.env` could inject `PATH`,
 - **Allowlist, don't passthrough.** Only the documented `SPEEDIANCE_*` keys may
   flow from a file into config. A new env-driven setting means a new explicit
   key, never a wildcard.
+- **A working-directory file is never trusted as auth state.** A `.token.json`
+  there is never read or migrated: importing it would let a planted token switch
+  the user's account. With no user cache dir, the token isn't cached at all.
 - **A working-directory file can't choose paths.** Keys that redirect where config
   is read or a credential is written (`SPEEDIANCE_CONFIG`, `SPEEDIANCE_TOKEN_CACHE`)
   are read from the real exported environment only (`exportedOnly`), never from
@@ -177,6 +180,11 @@ removed** — that's what makes it immutable. Pattern set by
   keeps it working from the user-config dir.
 - `TestDotEnvNeverMutatesProcessEnv` — even a *consumed* key reaches `Config`
   without appearing in the real environment.
+- `TestPlantedLegacyTokenIsNeverUsed` (in `internal/cli`) — a `.token.json` in
+  the working directory is never read, imported, moved or deleted; the session
+  comes from a fresh login and stderr warns (A.I.G T09).
+  `TestNoUserCacheDirDisablesTokenCacheInsteadOfUsingWorkingDir` — with no user
+  cache dir, caching turns off instead of falling back to the working directory.
 - `TestConfigWarningsReachStderr` (in `internal/cli`) — ignored path settings
   print to stderr even with `LOG_LEVEL=error`.
   `TestConfigSetTokenCachePathRefusedInWorkingDir` — `config set` won't write a

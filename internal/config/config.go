@@ -140,10 +140,10 @@ func defaultTokenCachePath() string {
 	if dir, err := os.UserCacheDir(); err == nil {
 		return filepath.Join(dir, appUserSubdir, userTokenName)
 	}
-	return legacyTokenName
+	return ""
 }
 
-// LegacyTokenCachePath is the pre-#17 token cache location, kept for migration.
+// LegacyTokenCachePath is the pre-#17 working-directory token file, which is never read.
 func LegacyTokenCachePath() string { return legacyTokenName }
 
 func discoverConfigPath(flagPath string) (string, configSource) {

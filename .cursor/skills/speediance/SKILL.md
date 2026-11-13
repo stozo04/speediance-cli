@@ -26,10 +26,10 @@ metadata:
       files.read:
         - "config.json — optional credential/config file (working directory, or your OS user-config dir)"
         - ".env — optional env file in the working directory; only the SPEEDIANCE_EMAIL, SPEEDIANCE_PASSWORD, SPEEDIANCE_REGION and SPEEDIANCE_DEVICE_TYPE keys are read (parsed to a map, never exported into the process environment); the path keys SPEEDIANCE_CONFIG and SPEEDIANCE_TOKEN_CACHE are ignored there"
-        - "token cache — cached session token in your OS user-cache dir by default (non-roaming); path overridable via an exported SPEEDIANCE_TOKEN_CACHE, or the token_cache_path key of a config.json given by --config, SPEEDIANCE_CONFIG or the user-config dir (ignored in a working-directory config.json). A legacy .token.json in the working directory is read once to migrate it."
+        - "token cache — cached session token in your OS user-cache dir by default (non-roaming); path overridable via an exported SPEEDIANCE_TOKEN_CACHE, or the token_cache_path key of a config.json given by --config, SPEEDIANCE_CONFIG or the user-config dir (ignored in a working-directory config.json). A legacy .token.json in the working directory is never read; the CLI only warns that it exists."
         - "plan JSON files passed to the push command"
       files.write:
-        - "token cache — session token written after login and refreshed automatically; in your OS user-cache dir by default (non-roaming; override via an exported SPEEDIANCE_TOKEN_CACHE or token_cache_path, which a working-directory config.json can't set). A legacy .token.json in the working directory is relocated here and then removed."
+        - "token cache — session token written after login and refreshed automatically; in your OS user-cache dir by default (non-roaming; override via an exported SPEEDIANCE_TOKEN_CACHE or token_cache_path, which a working-directory config.json can't set). A legacy .token.json in the working directory is never read, moved or removed."
         - "library.json — exercise catalog dump (library command; every run writes the full catalog to --out, default library.json)"
         - "config.json — written by the config set command (owner-only permissions)"
     requires:
@@ -336,8 +336,8 @@ layout.
   see where it resolved. `token_cache_path` counts only in a config file chosen by `--config`, an
   exported `SPEEDIANCE_CONFIG` or the user-config dir: a `config.json` that's simply in the working
   directory can't choose where the token is written, and the CLI warns on stderr when it ignores one.
-  A token left in a legacy `.token.json` by an older version is moved to the per-user location on
-  first run.
+  A `.token.json` left in the working directory by an older version is never read, since a planted
+  one could switch accounts; the CLI warns so you can delete it, and you log in once more.
 - **Dry-run first**: always use `--dry-run` before `push` when authoring new programs to
   confirm exercise IDs resolved correctly.
 - If an endpoint breaks after a Speediance app update, all API calls live in

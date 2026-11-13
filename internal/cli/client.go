@@ -2,6 +2,7 @@ package cli
 
 import (
 	"errors"
+	"os"
 
 	"github.com/spf13/cobra"
 
@@ -31,21 +32,10 @@ func (a *App) apiClient(useCache bool) (*api.Client, *config.Config, error) {
 		a.logger.Warn(w)
 	}
 
-	// Relocate a token cached under the old working-directory default up to the
-	// per-user location (issue #17) before we read or write it. Only the default
-	// path migrates — an explicit SPEEDIANCE_TOKEN_CACHE / token_cache_path is
-	// honored verbatim. Best-effort: a failure just means the next call logs in
-	// fresh, so it never blocks the command.
-	if cfg.TokenCacheIsDefault {
-		if migrated, err := auth.MigrateLegacy(cfg.TokenCachePath, config.LegacyTokenCachePath()); err != nil {
-			a.logger.Warn("token cache migration incomplete", "path", cfg.TokenCachePath, "err", err)
-		} else if migrated {
-			a.logger.Info("relocated token cache out of the working directory", "to", cfg.TokenCachePath)
-		}
-	}
+	a.warnAboutLegacyToken(cfg)
 
 	var tok auth.Token
-	if useCache {
+	if useCache && cfg.TokenCachePath != "" {
 		t, _, err := auth.Load(cfg.TokenCachePath)
 		if err != nil {
 			// A bad cache is non-fatal: warn to stderr and log in fresh.
@@ -70,6 +60,9 @@ func (a *App) apiClient(useCache bool) (*api.Client, *config.Config, error) {
 // Failure is non-fatal — a command that already produced its output shouldn't
 // fail because the cache couldn't be written (GOAL.md §7).
 func (a *App) saveToken(cfg *config.Config, client *api.Client) {
+	if cfg.TokenCachePath == "" {
+		return
+	}
 	if err := auth.Save(cfg.TokenCachePath, client.Token()); err != nil {
 		a.logger.Warn("could not write token cache", "path", cfg.TokenCachePath, "err", err)
 	}
@@ -94,4 +87,24 @@ func runE(fn func(cmd *cobra.Command, args []string) error) func(*cobra.Command,
 	return func(cmd *cobra.Command, args []string) error {
 		return classify(fn(cmd, args))
 	}
+}
+
+func (a *App) warnAboutLegacyToken(cfg *config.Config) {
+	if a.stderr == nil {
+		return
+	}
+	legacy := config.LegacyTokenCachePath()
+	if cfg.TokenCachePath == legacy {
+		return
+	}
+	if _, err := os.Stat(legacy); err != nil {
+		return
+	}
+	if cfg.TokenCachePath == "" {
+		fprintf(a.stderr, "warning: ignoring %s in the working directory; it is never read, so delete it. "+
+			"No per-user cache dir is available, so this run's session isn't cached.\n", legacy)
+		return
+	}
+	fprintf(a.stderr, "warning: ignoring %s in the working directory; it is never read, so delete it. "+
+		"Sessions are cached at %s.\n", legacy, cfg.TokenCachePath)
 }

@@ -132,6 +132,10 @@ Neither form is mandated; the exit-non-zero-when-broken property is.
 
 When you change a **default** secret location, relocate the old file forward
 exactly once, conservatively:
+- **user-owned sources only** — migrate only from a location only the user can
+  write (another per-user dir). Never import from the working directory or any
+  other place a repo or attacker can plant a file: a planted token would switch
+  the user's account. For those, warn and make the user log in again;
 - **default-path-only** — never scavenge an explicit `--flag`/env override;
 - **never clobber** a token already at the destination;
 - **no-op** on a missing/corrupt legacy file;
@@ -142,7 +146,7 @@ So no user is forced to re-auth, and the credential actually leaves the old spot
 
 | | GH | SPD |
 |---|---|---|
-| status | `auth.MigrateLegacyToken` (`<UserConfigDir>` → `<UserCacheDir>`), `TestMigrateLegacyToken{,NeverClobbers,NoLegacy}`, `TestEndToEndMigratesLegacyTokenToCacheDir` | `auth.MigrateLegacy` (`.token.json` → per-user), `TestMigrateLegacyMovesToken`, `TestEndToEndMigratesLegacyTokenToCacheDir` |
+| status | `auth.MigrateLegacyToken` (`<UserConfigDir>` → `<UserCacheDir>`), `TestMigrateLegacyToken{,NeverClobbers,NoLegacy}`, `TestEndToEndMigratesLegacyTokenToCacheDir` | no migration: the legacy source is the working directory, so a stray `.token.json` is never read and only warned about (`TestPlantedLegacyTokenIsNeverUsed`) |
 
 ## 8. Portable paths in tracked docs
 

@@ -213,8 +213,10 @@ Token cache: exported `SPEEDIANCE_TOKEN_CACHE` (never from `.env`) > `token_cach
 (only from a file found via step 1 or 3, never from the working-directory `config.json` of step 2) >
 `<os.UserCacheDir>/speediance/token.json` per-user default. (The original Python/Go default
 of `.token.json` in CWD was changed in **issue #17**: a CWD default leaked a live token into
-whatever repo the tool ran from, where a `git add -A` could commit it. An existing legacy
-`.token.json` is migrated to the per-user location on first run so no one is forced to re-login.
+whatever repo the tool ran from, where a `git add -A` could commit it. A legacy
+`.token.json` in the working directory is never read or migrated: the working directory is
+attacker-influenceable, so importing it would let a planted token switch the user's account. The
+CLI warns that the file exists; users log in once more.
 The base is `os.UserCacheDir` — the non-roaming cache dir (`%LocalAppData%`), not the roaming
 `os.UserConfigDir` (`%AppData%`) — so a live credential isn't synced across machines; see
 `.claude/CLI_CONVENTIONS.md §1`. Config files still resolve under `os.UserConfigDir`.)

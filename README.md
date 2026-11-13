@@ -126,7 +126,8 @@ GitHub Actions — no manual publish step needed.
   isn't synced across machines. Override with an exported `SPEEDIANCE_TOKEN_CACHE`
   or the `token_cache_path` config key (ignored, with a warning, in a working-directory
   `config.json`; use `--config` or the user-config dir); `config path` shows where it resolved. An older
-  `.token.json` in the working directory is migrated automatically on first run.
+  `.token.json` in the working directory is never read (a planted one could switch accounts); the
+  CLI warns so you can delete it, and you log in once more.
 - "Free Lift" (freestyle) sessions return totals only — no per-set detail. Programs do.
 - `library.json` is a committed **snapshot** of the exercise catalog for convenience;
   regenerate it anytime with `speediance-cli library`.

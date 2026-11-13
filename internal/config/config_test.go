@@ -552,3 +552,23 @@ func clearEnv(t *testing.T) {
 		_ = os.Unsetenv(k)
 	}
 }
+
+func TestNoUserCacheDirDisablesTokenCacheInsteadOfUsingWorkingDir(t *testing.T) {
+	t.Chdir(t.TempDir())
+	clearEnv(t)
+	for _, k := range []string{"HOME", "XDG_CACHE_HOME", "LocalAppData"} {
+		t.Setenv(k, "")
+		_ = os.Unsetenv(k)
+	}
+	if _, err := os.UserCacheDir(); err == nil {
+		t.Skip("this platform still resolves a user cache dir without HOME")
+	}
+
+	cfg, err := Load(Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.TokenCachePath != "" {
+		t.Errorf("token cache = %q, want caching disabled (\"\") rather than a working-directory file", cfg.TokenCachePath)
+	}
+}

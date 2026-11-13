@@ -25,8 +25,9 @@ This tool authenticates to your personal Speediance account. Treat these as secr
   are ignored in `.env`, and `token_cache_path` is ignored in a working-directory `config.json` (it
   counts only via `--config`, an exported `SPEEDIANCE_CONFIG`, or the user-config dir). The CLI warns
   on stderr whenever it ignores one.
-  A token left by an older version in a working-directory `.token.json` is relocated to the per-user
-  location on first run.
+  A `.token.json` in the working directory (the pre-#17 location) is never read, because anyone who
+  can write to that directory could plant one and point your commands at their account. The CLI
+  warns on stderr and leaves the file for you to delete; you log in once more.
 - **`.env`** may store the same credentials.
 
 These are **gitignored** and must never be committed. For agents/headless use, prefer environment

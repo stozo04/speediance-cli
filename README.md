@@ -38,7 +38,6 @@ same `--json`).
 
 ```bash
 go install github.com/stozo04/speediance-cli/v2/cmd/speediance-cli@latest
-speediance-cli login
 ```
 
 `go install` drops the binary in `$(go env GOPATH)/bin` — make sure that's on your `PATH`.
@@ -47,6 +46,15 @@ Credentials via env vars (`SPEEDIANCE_EMAIL`, `SPEEDIANCE_PASSWORD`, `SPEEDIANCE
 a gitignored `config.json`, or a gitignored `.env` file in the working directory (auto-loaded;
 real exported env vars take precedence over it) — see `.env.example` / `config.example.json` and
 [the machine contract](docs/MACHINE_CONTRACT.md). SSO/Google accounts: set a password in the Speediance app once.
+
+Set credentials before the first command: `login` and every data command exit with a
+config error (exit `78`) until an email and password are found.
+
+```bash
+export SPEEDIANCE_EMAIL="you@example.com"
+export SPEEDIANCE_PASSWORD="your-password"
+speediance-cli login   # verifies the credentials and caches a session token
+```
 
 ## Commands
 
@@ -128,7 +136,8 @@ GitHub Actions — no manual publish step needed.
   `config.json`; use `--config` or the user-config dir); `config path` shows where it resolved. An older
   `.token.json` in the working directory is never read (a planted one could switch accounts); the
   CLI warns so you can delete it, and you log in once more.
-- "Free Lift" (freestyle) sessions return totals only — no per-set detail. Programs do.
+- A freestyle "Free Lift" returns session totals only (no per-set detail). Programs and
+  guided free sessions (e.g. Aerobic Rowing) return full per-rep or per-interval detail.
 - `library.json` is a committed **snapshot** of the exercise catalog for convenience;
   regenerate it anytime with `speediance-cli library`.
 - `main` is PR-protected; changes land via pull request.

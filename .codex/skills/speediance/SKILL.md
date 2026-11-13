@@ -89,7 +89,8 @@ Install it one of two ways:
 go install github.com/stozo04/speediance-cli/v2/cmd/speediance-cli@latest
 ```
 
-Then authenticate:
+Then set your credentials as described in [Credentials](#credentials) below, and
+authenticate. `login` exits with a config error until an email and password are found:
 
 ```bash
 speediance-cli login   # authenticates and caches a session token (run `config path` to see where)

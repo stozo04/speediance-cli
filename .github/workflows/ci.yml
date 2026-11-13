@@ -42,3 +42,15 @@ jobs:
           # also update them if go.mod's `go` directive outpaces the linter,
           # otherwise it panics: "file requires newer Go version ... (built with ...)".
           version: v2.12.2
+
+  clawhub-package:
+    name: clawhub package contents
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+      - name: Check what clawhub would publish
+        run: make check-clawhub

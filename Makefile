@@ -56,7 +56,7 @@ snapshot: ## Cross-compile a local snapshot with GoReleaser (no publish)
 	goreleaser build --snapshot --clean
 
 .PHONY: check
-check: check-agents tidy fmt vet lint test-race ## Run the full pre-commit gauntlet
+check: check-agents check-clawhub tidy fmt vet lint test-race ## Run the full pre-commit gauntlet
 
 .PHONY: clean
 clean: ## Remove build artifacts
@@ -66,3 +66,12 @@ clean: ## Remove build artifacts
 check-agents: ## Check shared instructions and skill mirrors (Python 3)
 	python3 scripts/sync-harness-skills.py --check
 	python3 scripts/test-sync-harness-skills.py
+
+CLAWHUB_VERSION := 0.26.0
+
+.PHONY: check-clawhub
+check-clawhub: ## Fail if `clawhub skill publish` would ship anything outside the allowlist (Node)
+	@tmp=$$(mktemp -d) && \
+	( cd $$tmp && npm pack clawhub@$(CLAWHUB_VERSION) --silent >/dev/null && tar xzf clawhub-$(CLAWHUB_VERSION).tgz && \
+	  cd package && npm install --no-save --ignore-scripts --silent ignore@$$(node -p "require('./package.json').dependencies.ignore") ) && \
+	node scripts/check-clawhub-package.mjs $$tmp/package .

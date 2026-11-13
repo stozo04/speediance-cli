@@ -11,3 +11,13 @@
 /speediance-cli.exe
 *.out
 coverage.txt
+/AGENTS.md
+/CLAUDE.md
+/Engineering-Prompt.md
+/GOAL.md
+/CONTRIBUTING.md
+/RELEASING.md
+/Makefile
+/docs/OPERATING_INSTRUCTIONS.md
+/docs/PROJECT_INSTRUCTIONS.md
+/docs/project-agent-audit.md

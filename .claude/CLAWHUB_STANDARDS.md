@@ -141,7 +141,7 @@ Run before merging anything that touches config, auth, file I/O, network, or
 - [ ] No `godotenv.Load`/`Overload` — `.env` parsed via `Read` into a map, allowlisted keys only.
 - [ ] No `os.Setenv` used to wire configuration.
 - [ ] Path-redirecting keys are read with `exportedOnly`, never from `.env`.
-- [ ] Anything new that isn't part of the skill (tests, fixtures, local data, build output) is listed in `.clawhubignore`.
+- [ ] `make check-clawhub` passes: it lists the package with clawhub's own `forEachPublishFile` (pinned `CLAWHUB_VERSION`) and fails on any file outside the `SHIPPABLE` allowlist in `scripts/check-clawhub-package.mjs`. Tests, `testdata/`, `scripts/`, `library.json` and agent docs stay out via `.clawhubignore`. CI runs it on every PR and before every publish.
 - [ ] Every secret-bearing file written `0600` (dir `0700`), with the chmod re-tighten pattern.
 - [ ] No secret printed to stdout/stderr/logs at any verbosity; passwords masked in `config show`.
 - [ ] `SKILL.md` permissions/env/network block matches the code exactly.

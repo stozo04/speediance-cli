@@ -21,7 +21,7 @@ same `--json`).
 > it is currently **UNTESTED**. Set `SPEEDIANCE_DEVICE_TYPE` (or `device_type` in
 > config.json) if you want to try another device.
 
-> Point an agent at this repo. See **[AGENTS.md](AGENTS.md)** for the full self-serve guide
+> Point an agent at this repo. See **[the machine contract](docs/MACHINE_CONTRACT.md)** for the full self-serve guide
 > (setup, credentials, command surface, plan schema).
 
 > Unofficial — uses the Speediance cloud API reverse-engineered from the Android app.
@@ -46,7 +46,7 @@ speediance-cli login
 Credentials via env vars (`SPEEDIANCE_EMAIL`, `SPEEDIANCE_PASSWORD`, `SPEEDIANCE_REGION`),
 a gitignored `config.json`, or a gitignored `.env` file in the working directory (auto-loaded;
 real exported env vars take precedence over it) — see `.env.example` / `config.example.json` and
-[AGENTS.md](AGENTS.md). SSO/Google accounts: set a password in the Speediance app once.
+[the machine contract](docs/MACHINE_CONTRACT.md). SSO/Google accounts: set a password in the Speediance app once.
 
 ## Commands
 
@@ -81,7 +81,7 @@ Author a plan (a human, a coach, or an LLM can write it), then `push` it:
 ```
 
 `weight` is kilograms; `mode` 1=Standard; `rest` in seconds. Get `id`s from
-`speediance-cli library`. Full schema and field notes in [AGENTS.md](AGENTS.md).
+`speediance-cli library`. Full schema and field notes in [the machine contract](docs/MACHINE_CONTRACT.md).
 
 ## Conventions
 

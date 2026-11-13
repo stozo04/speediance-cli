@@ -4,8 +4,6 @@ import { join, resolve } from "node:path";
 
 const SHIPPABLE = [
   /^SKILL\.md$/,
-  /^README\.md$/,
-  /^LICENSE$/,
   /^SECURITY\.md$/,
   /^config\.example\.json$/,
   /^docs\/MACHINE_CONTRACT\.md$/,

@@ -102,6 +102,11 @@ attacker-influenceable, so a stray/hostile `.env` could inject `PATH`,
 - Request the **narrowest** scope that works. No new file reads/writes, network
   hosts, env vars, or required binaries without updating `SKILL.md` and asking
   whether a narrower option exists.
+- ClawHub publishes every skill under MIT-0 and forbids conflicting terms, so
+  the package ships no license text: `LICENSE` and `README.md` (its MIT badge
+  and License section) stay out via `.clawhubignore`, and the `SHIPPABLE`
+  allowlist fails if either returns. The repo itself stays MIT. Keep the
+  upstream credit line in `SKILL.md`; it's attribution, not a license term.
 - `requires.bins` lists exactly `speediance-cli`: OpenClaw only shows the skill
   when that binary is on `PATH`. The binary itself needs no other tool and never
   shells out (`TestSkillDocPromisesNoShellOut`). Add an OpenClaw `install` entry

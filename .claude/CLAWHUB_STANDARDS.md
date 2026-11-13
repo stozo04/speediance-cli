@@ -77,6 +77,16 @@ attacker-influenceable, so a stray/hostile `.env` could inject `PATH`,
   with what the code does. Every declared `files.read`, `files.write`, and
   `network` entry must be real; remove anything the code no longer does, and add
   anything new **before** publishing.
+- Keep the top-level `permissions` list (`network`, `env`, `file_read`,
+  `file_write`) in sync too. SkillSpector's LP3 reads only that list (or
+  `allowed-tools`), never the nested `metadata.openclaw` block. Never add
+  `shell`: the binary doesn't shell out.
+- The `description` must name every local write: the token cache, `config set`
+  storing values (including a password) in `config.json`, and the `library`
+  catalog file. SkillSpector's TP4 compares the description with the code.
+- Agent instructions never treat a passing mention of exercise as a request to
+  read the account. `today` runs on an explicit request or after the user
+  confirms (SkillSpector SQP-1).
 - Request the **narrowest** scope that works. No new file reads/writes, network
   hosts, env vars, or required binaries without updating `SKILL.md` and asking
   whether a narrower option exists.
@@ -95,13 +105,13 @@ attacker-influenceable, so a stray/hostile `.env` could inject `PATH`,
 
 ## 6. Comments and naming around security code
 
-- Scanners do keyword/heuristic matching. A comment like
-  `// A missing .env is a silent no-op` next to credential code can itself trip a
-  finding. Write security comments to **explain the safeguard** (what we
-  deliberately do *not* do and why), not just to narrate behavior. A good comment
-  doubles as the reviewer's answer.
-- Don't try to "hide" from the scanner by deleting honest comments — fix the
-  behavior; the clearer comment is a side effect.
+- Security code carries no explanatory comments (house rule). Names, small
+  functions and the guard tests carry the meaning; the why lives in the commit
+  message, the PR and this file. Doc comments stay only where revive requires
+  them on exported identifiers, and say what the identifier is in plain words.
+- Never rename, split or encode honest strings (`".env"`, user-facing messages)
+  to dodge a scanner regex. Fix the behavior, and record genuine false positives
+  below.
 
 ## 7. Community-friendly paths — never machine-specific
 
@@ -167,6 +177,14 @@ removed** — that's what makes it immutable. Pattern set by
   keeps it working from the user-config dir.
 - `TestDotEnvNeverMutatesProcessEnv` — even a *consumed* key reaches `Config`
   without appearing in the real environment.
+- `TestConfigWarningsReachStderr` (in `internal/cli`) — ignored path settings
+  print to stderr even with `LOG_LEVEL=error`.
+  `TestConfigSetTokenCachePathRefusedInWorkingDir` — `config set` won't write a
+  `token_cache_path` that would be ignored.
+- `internal/config/skill_doc_test.go`: `TestSkillDocDeclaresTopLevelPermissions`
+  (LP3), `TestSkillDescriptionDisclosesLocalWrites` (TP4) and
+  `TestAgentDocsRequireExplicitRequestBeforeReadingWorkouts` (SQP-1, checks both
+  `SKILL.md` and `docs/MACHINE_CONTRACT.md`).
 
 When you add a safeguard, add the matching test in the same PR. Name it so the
 guarantee is obvious, and assert the **negative** (the bad thing does NOT happen),
@@ -184,3 +202,17 @@ If a finding can't be fixed because the behavior is essential and already minima
    broad env mutation even though *some* credential reading is unavoidable).
 3. Record the rationale here and in the PR so the next reviewer doesn't re-litigate
    it. Never silence a scanner by obfuscating honest code.
+
+Known false positives (SkillSpector 2.12.0, read from its source):
+
+- **PE3 "Credential Access" at 60% on `.env`.** The rule is a regex,
+  `(?<!\w)\.env(...)?(\s|$|['"])`, that fires on any literal `.env` mention. The
+  tool really does read `.env` and declares it, so the remaining hits (SKILL.md
+  permissions and env descriptions, the `.env` warning and the missing-credentials
+  message in `config.go`) are accepted.
+- **"shell" capability.** LP-family rules detect shell via `\bchmod\b`, which
+  matches `f.Chmod(0o600)`, the owner-only permission re-tighten. Nothing runs a
+  subprocess (`TestSkillDocPromisesNoShellOut`), so `shell` is not declared.
+- **A shipped baseline can't suppress these.** SkillSpector applies an author's
+  `.skillspector-baseline.yaml` only with `--use-shipped-baseline`, and clawhub
+  never ships dotfiles.

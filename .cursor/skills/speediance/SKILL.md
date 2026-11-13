@@ -6,8 +6,15 @@ description: >
   smart cable machine via its cloud API. Authenticates with your account credentials,
   caches a session token in your OS user-cache directory (override with an exported SPEEDIANCE_TOKEN_CACHE),
   and makes outbound HTTPS requests to the Speediance cloud API. Reads and emits structured
-  data — the caller decides where to store it. Ships as a single static binary — no Python or
-  other runtime required.
+  data. It writes local files only in these cases: the session token cache; config.json when you
+  run `config set`, which stores the value you give it (including a password) as plain JSON with
+  owner-only permissions; and the exercise catalog that the `library` command saves (default
+  library.json). Ships as a single static binary — no Python or other runtime required.
+permissions:
+  - network
+  - env
+  - file_read
+  - file_write
 metadata:
   openclaw:
     emoji: 🏋️
@@ -122,9 +129,11 @@ speediance-cli workouts --days 7 --json      # recent sessions (summaries, for p
 speediance-cli session <training_id> --json  # full, verbatim detail for one session
 ```
 
-**`today` is the one-shot, agent-friendly entry point.** When the client just says
-"I did a workout," call `today` — you do **not** need to know whether it was a
-program, free weights, or a rowing/ski session. The tool finds the day's session(s)
+**`today` is the one-shot, agent-friendly entry point.** Call it only when the user
+asks for their Speediance data (for example "pull today's Speediance workout"), or
+after they confirm they want it fetched. A passing mention of exercising is not a
+request to read their account: ask first. You do **not** need to know whether the
+session was a program, free weights, or a rowing/ski session. The tool finds the day's session(s)
 and returns each one fully resolved, as an array of the same `{training_id, kind,
 info, detail}` shape that `session` emits. (`kind` is `"program"`, `"free"`, or
 `""`.)

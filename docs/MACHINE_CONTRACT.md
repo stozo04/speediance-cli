@@ -71,8 +71,9 @@ speediance-cli workouts --days 7 --json
 speediance-cli session <training_id> --json
 ```
 
-**The tool auto-detects the session type — the agent stays dumb.** When the client
-says they did a workout, call `today`: it finds the day's session(s) and returns
+**The tool auto-detects the session type — the agent stays dumb.** When the user asks
+for their Speediance data, or confirms they want it fetched, call `today`. A passing
+mention of exercising is not a request to read their account: ask first. `today` finds the day's session(s) and returns
 each fully resolved, without you knowing whether it was a program, free weights, or
 rowing. `session <id>` does the same for one id (probes the program namespace, then
 free).

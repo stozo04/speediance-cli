@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -137,5 +138,81 @@ func TestSkillDocPromisesNoShellOut(t *testing.T) {
 	})
 	if walkErr != nil {
 		t.Fatalf("walk source tree: %v", walkErr)
+	}
+}
+
+func skillFrontmatter(t *testing.T) string {
+	t.Helper()
+	skill, err := os.ReadFile(filepath.Join(repoRoot(t), "SKILL.md"))
+	if err != nil {
+		t.Fatalf("read SKILL.md: %v", err)
+	}
+	doc := strings.TrimPrefix(string(skill), "---\n")
+	end := strings.Index(doc, "\n---")
+	if end < 0 {
+		t.Fatal("SKILL.md has no closing frontmatter fence")
+	}
+	return doc[:end]
+}
+
+func topLevelList(frontmatter, key string) []string {
+	var items []string
+	inList := false
+	for _, line := range strings.Split(frontmatter, "\n") {
+		switch {
+		case line == key+":":
+			inList = true
+		case inList && strings.HasPrefix(line, "  - "):
+			items = append(items, strings.TrimSpace(strings.TrimPrefix(line, "  - ")))
+		case inList:
+			return items
+		}
+	}
+	return items
+}
+
+func TestSkillDocDeclaresTopLevelPermissions(t *testing.T) {
+	declared := topLevelList(skillFrontmatter(t), "permissions")
+	for _, want := range []string{"network", "env", "file_read", "file_write"} {
+		if !slices.Contains(declared, want) {
+			t.Errorf("SKILL.md top-level permissions = %q, missing %q; SkillSpector LP3 only reads this list", declared, want)
+		}
+	}
+	if slices.Contains(declared, "shell") {
+		t.Error("SKILL.md declares shell, but the binary never shells out (see TestSkillDocPromisesNoShellOut)")
+	}
+}
+
+func TestSkillDescriptionDisclosesLocalWrites(t *testing.T) {
+	fm := skillFrontmatter(t)
+	start := strings.Index(fm, "description:")
+	end := strings.Index(fm, "\npermissions:")
+	if start < 0 || end < start {
+		t.Fatal("SKILL.md description must come right before the top-level permissions list")
+	}
+	description := fm[start:end]
+	for _, want := range []string{"token cache", "config set", "password", "library"} {
+		if !strings.Contains(description, want) {
+			t.Errorf("SKILL.md description does not disclose %q; SkillSpector TP4 compares the description with what the code writes", want)
+		}
+	}
+}
+
+func TestAgentDocsRequireExplicitRequestBeforeReadingWorkouts(t *testing.T) {
+	root := repoRoot(t)
+	for _, rel := range []string{"SKILL.md", filepath.Join("docs", "MACHINE_CONTRACT.md")} {
+		data, err := os.ReadFile(filepath.Join(root, rel))
+		if err != nil {
+			t.Fatalf("read %s: %v", rel, err)
+		}
+		doc := strings.Join(strings.Fields(string(data)), " ")
+		if !strings.Contains(doc, "A passing mention of exercising is not a request to read their account: ask first.") {
+			t.Errorf("%s must tell agents to ask before calling today on a passing workout mention (SkillSpector SQP-1)", rel)
+		}
+		for _, broad := range []string{`just says "I did a workout," call`, "says they did a workout, call"} {
+			if strings.Contains(doc, broad) {
+				t.Errorf("%s still treats a passing workout mention as a trigger: %q", rel, broad)
+			}
+		}
 	}
 }

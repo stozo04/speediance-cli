@@ -203,17 +203,20 @@ two-return `os.LookupEnv` to distinguish set-empty from unset.)
 
 ### File discovery (drop-in, with an optional modern fallback)
 
-1. `--config PATH` (new flag) or `SPEEDIANCE_CONFIG` env → explicit path.
+1. `--config PATH` (new flag) or an exported `SPEEDIANCE_CONFIG` (never from `.env`) → explicit path.
 2. else `config.json` in the current working directory (**preserves today's behavior** and the skill
    docs).
 3. *(enhancement)* else `<os.UserConfigDir>/speediance/config.json` — documented as optional, never
    required. Keep CWD as the default so existing agents/skills are unaffected.
 
-Token cache: `SPEEDIANCE_TOKEN_CACHE` env > `token_cache_path` config key >
+Token cache: exported `SPEEDIANCE_TOKEN_CACHE` (never from `.env`) > `token_cache_path` config key
+(only from a file found via step 1 or 3, never from the working-directory `config.json` of step 2) >
 `<os.UserCacheDir>/speediance/token.json` per-user default. (The original Python/Go default
 of `.token.json` in CWD was changed in **issue #17**: a CWD default leaked a live token into
-whatever repo the tool ran from, where a `git add -A` could commit it. An existing legacy
-`.token.json` is migrated to the per-user location on first run so no one is forced to re-login.
+whatever repo the tool ran from, where a `git add -A` could commit it. A legacy
+`.token.json` in the working directory is never read or migrated: the working directory is
+attacker-influenceable, so importing it would let a planted token switch the user's account. The
+CLI warns that the file exists; users log in once more.
 The base is `os.UserCacheDir` — the non-roaming cache dir (`%LocalAppData%`), not the roaming
 `os.UserConfigDir` (`%AppData%`) — so a live credential isn't synced across machines; see
 `.claude/CLI_CONVENTIONS.md §1`. Config files still resolve under `os.UserConfigDir`.)
@@ -561,8 +564,8 @@ Rewrite the three docs so they describe the Go tool — **drop the `python3` req
 - **README.md** — install via release binary / `go install github.com/stozo04/speediance-cli/cmd/speediance-cli@latest`; same command examples; keep the GM1/GM2 + unofficial-API + credits notes.
 - **AGENTS.md** — same command surface and plan schema; replace pip/clone-Python setup with binary
   download / `go install`; keep the stdout-parseable + secrets-gitignored conventions.
-- **SKILL.md** — update `requires.bins` from `python3` to none (bundled binary) or document the
-  `go install`/download step; keep `envVars`, permissions, and emoji. The auto-publish Action stays.
+- **SKILL.md** — `requires.bins` lists `speediance-cli` (replacing `python3`) and the
+  `go install`/download step is documented; keep `envVars`, permissions, and emoji. The auto-publish Action stays.
 - Carry over `library.json`, `LICENSE` (MIT), `config.example.json`, `.env.example`, and the
   `plans/` examples (still gitignore `plans/`).
 

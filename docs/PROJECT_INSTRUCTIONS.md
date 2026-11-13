@@ -57,9 +57,10 @@ pass and `gofmt -l` is clean. This is **enforced, not advisory**: CI
 
 The **negative-assertion guard tests** — every test named in the SPD cells of
 `.claude/CLI_CONVENTIONS.md` (§0, §1, §3, §5, §7, §9) **plus**
-`internal/cli`'s `TestEndToEndMigratesLegacyTokenToCacheDir` — are **immutable**: each
-asserts that a known bad thing does **not** happen (a secret in CWD, a token in the
-roaming base, a `.env` mutating the process env, an advertised-but-unwired key, …). They
+`internal/cli`'s `TestPlantedLegacyTokenIsNeverUsed` — are **immutable**: each
+asserts that a known bad thing does **not** happen (a secret in CWD, a token taken from
+CWD, a token in the roaming base, a `.env` mutating the process env, an
+advertised-but-unwired key, …). They
 must never be skipped (`t.Skip`), deleted, or weakened to turn a PR green — a red guard
 means **fix the code, not the test**. Any new credential / config / permission / network
 behavior ships with its guard in the **same** PR (see `.claude/CLAWHUB_STANDARDS.md`).
@@ -91,7 +92,7 @@ Run `make check-agents` for instruction and skill changes (Python 3 is a develop
 check dependency only; the shipped CLI remains a single binary). Root `SKILL.md`
 is the published artifact; mirror its complete package into each harness after
 editing it. Reconcile all copies before choosing a repair source. Run
-`python scripts/sync-harness-skills.py --fix --from claude`, or select `cursor`/`codex`,
+`python3 scripts/sync-harness-skills.py --fix --from claude`, or select `cursor`/`codex`,
 then `make check-agents`. Preserve native settings and publishing triggers.
 
 Read `CONTRIBUTING.md`, `SECURITY.md`, and `RELEASING.md` for their applicable gates.

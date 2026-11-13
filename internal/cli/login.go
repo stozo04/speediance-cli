@@ -19,9 +19,12 @@ func newLoginCmd(app *App) *cobra.Command {
 			if err := client.Login(cmd.Context()); err != nil {
 				return err
 			}
-			app.saveToken(cfg, client)
-
 			tok := client.Token()
+			if !app.saveToken(cfg, client) {
+				fprintf(cmd.OutOrStdout(),
+					"Logged in (user %s). Token not cached; the next command logs in again.\n", tok.UserID)
+				return nil
+			}
 			fprintf(cmd.OutOrStdout(),
 				"Logged in (user %s). Token cached to %s — keep this file private.\n",
 				tok.UserID, cfg.TokenCachePath)

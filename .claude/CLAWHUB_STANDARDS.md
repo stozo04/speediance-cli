@@ -7,6 +7,12 @@ looks for credential mishandling, privilege escalation, excessive permissions,
 and risky patterns. Follow these rules so a real change never trips a real
 finding, and so the few false positives are easy to defend.
 
+> **Precedence:** OpenClaw's skill format (docs.openclaw.ai/clawhub/skill-format)
+> and the Agent Skills spec it builds on (agentskills.io/specification) come
+> first. Never break either to silence a scanner heuristic; record the finding
+> as a known false positive instead. CI checks the spec on every PR and weekly,
+> so a tightened standard fails the build.
+
 > **Golden rule:** a credential-collecting tool *will* draw scanner attention.
 > Our job is to make every credential/permission/network behavior **minimal,
 > documented, and provable with a test** — so any finding is either fixed or
@@ -32,6 +38,17 @@ attacker-influenceable, so a stray/hostile `.env` could inject `PATH`,
 - **Allowlist, don't passthrough.** Only the documented `SPEEDIANCE_*` keys may
   flow from a file into config. A new env-driven setting means a new explicit
   key, never a wildcard.
+- **A working-directory file is never trusted as auth state.** A `.token.json`
+  there is never read or migrated: importing it would let a planted token switch
+  the user's account. With no user cache dir, the token isn't cached at all.
+- **A working-directory file can't choose paths.** Keys that redirect where config
+  is read or a credential is written (`SPEEDIANCE_CONFIG`, `SPEEDIANCE_TOKEN_CACHE`)
+  are read from the real exported environment only (`exportedOnly`), never from
+  `.env`. The `token_cache_path` config key counts only when the config file came
+  from `--config`, an exported `SPEEDIANCE_CONFIG` or the user-config dir, never
+  from an implicit `./config.json` (`configSource.mayChoosePaths`). Every ignored
+  path setting adds a `Config.Warnings` entry printed to stderr. A new path-like
+  key follows the same rule.
 - **Do not call `os.Setenv` to wire config.** Resolve values into the `Config`
   struct; leave `os.Environ` untouched. (`os.Getenv`/`os.LookupEnv` for *reading*
   a real exported var is fine and expected.)
@@ -69,12 +86,31 @@ attacker-influenceable, so a stray/hostile `.env` could inject `PATH`,
   with what the code does. Every declared `files.read`, `files.write`, and
   `network` entry must be real; remove anything the code no longer does, and add
   anything new **before** publishing.
+- Top-level frontmatter keys are only the Agent Skills six: `name`,
+  `description`, `license`, `compatibility`, `metadata`, `allowed-tools`.
+  OpenClaw runtime fields live under `metadata.openclaw`.
+  (`TestSkillFrontmatterFollowsAgentSkillsSpec`; the upstream `skills-ref`
+  validator runs in CI.)
+- The `description` stays within 1024 characters and says when to use the
+  skill.
+- The `description` must name every local write: the token cache, `config set`
+  storing values (including a password) in `config.json`, and the `library`
+  catalog file. SkillSpector's TP4 compares the description with the code.
+- Agent instructions never treat a passing mention of exercise as a request to
+  read the account. `today` runs on an explicit request or after the user
+  confirms (SkillSpector SQP-1).
 - Request the **narrowest** scope that works. No new file reads/writes, network
   hosts, env vars, or required binaries without updating `SKILL.md` and asking
   whether a narrower option exists.
-- `requires.bins` stays `[]` — we ship a single static binary. Don't introduce a
-  dependency on `sudo`, a shell, or an external tool. Never shell out to run
-  privileged commands.
+- ClawHub publishes every skill under MIT-0 and forbids conflicting terms, so
+  the package ships no license text: `LICENSE` and `README.md` (its MIT badge
+  and License section) stay out via `.clawhubignore`, and the `SHIPPABLE`
+  allowlist fails if either returns. The repo itself stays MIT. Keep the
+  upstream credit line in `SKILL.md`; it's attribution, not a license term.
+- `requires.bins` lists exactly `speediance-cli`: OpenClaw only shows the skill
+  when that binary is on `PATH`. The binary itself needs no other tool and never
+  shells out (`TestSkillDocPromisesNoShellOut`). Add an OpenClaw `install` entry
+  (`kind: go`) only once `go install …@latest` resolves to the current release.
 
 ## 5. No code execution / injection surfaces
 
@@ -87,13 +123,13 @@ attacker-influenceable, so a stray/hostile `.env` could inject `PATH`,
 
 ## 6. Comments and naming around security code
 
-- Scanners do keyword/heuristic matching. A comment like
-  `// A missing .env is a silent no-op` next to credential code can itself trip a
-  finding. Write security comments to **explain the safeguard** (what we
-  deliberately do *not* do and why), not just to narrate behavior. A good comment
-  doubles as the reviewer's answer.
-- Don't try to "hide" from the scanner by deleting honest comments — fix the
-  behavior; the clearer comment is a side effect.
+- Security code carries no explanatory comments (house rule). Names, small
+  functions and the guard tests carry the meaning; the why lives in the commit
+  message, the PR and this file. Doc comments stay only where revive requires
+  them on exported identifiers, and say what the identifier is in plain words.
+- Never rename, split or encode honest strings (`".env"`, user-facing messages)
+  to dodge a scanner regex. Fix the behavior, and record genuine false positives
+  below.
 
 ## 7. Community-friendly paths — never machine-specific
 
@@ -132,6 +168,8 @@ Run before merging anything that touches config, auth, file I/O, network, or
 
 - [ ] No `godotenv.Load`/`Overload` — `.env` parsed via `Read` into a map, allowlisted keys only.
 - [ ] No `os.Setenv` used to wire configuration.
+- [ ] Path-redirecting keys are read with `exportedOnly`, never from `.env`.
+- [ ] `make check-clawhub` passes: it lists the package with clawhub's own `forEachPublishFile` (pinned `CLAWHUB_VERSION`) and fails on any file outside the `SHIPPABLE` allowlist in `scripts/check-clawhub-package.mjs`. Tests, `testdata/`, `scripts/`, `library.json` and agent docs stay out via `.clawhubignore`. CI runs it on every PR and before every publish.
 - [ ] Every secret-bearing file written `0600` (dir `0700`), with the chmod re-tighten pattern.
 - [ ] No secret printed to stdout/stderr/logs at any verbosity; passwords masked in `config show`.
 - [ ] `SKILL.md` permissions/env/network block matches the code exactly.
@@ -149,8 +187,27 @@ removed** — that's what makes it immutable. Pattern set by
 - `TestDotEnvDoesNotInjectForeignEnv` — a `.env` with `LD_PRELOAD`/`PATH`/sentinel
   keys must load the `SPEEDIANCE_*` value yet leak **none** of the foreign keys
   into `os.Environ`. Reintroducing `godotenv.Load()` fails this.
+- `TestDotEnvCannotRedirectPaths` — a `.env` setting `SPEEDIANCE_CONFIG` or
+  `SPEEDIANCE_TOKEN_CACHE` must change neither the config file nor the token
+  cache path, and must warn. `TestExportedEnvStillRedirectsPaths` keeps the exported override working.
+- `TestWorkingDirConfigCannotChooseTokenPath` — a `token_cache_path` in an implicit
+  `./config.json` is ignored with a warning; `TestUserDirConfigMayChooseTokenPath`
+  keeps it working from the user-config dir.
 - `TestDotEnvNeverMutatesProcessEnv` — even a *consumed* key reaches `Config`
   without appearing in the real environment.
+- `TestPlantedLegacyTokenIsNeverUsed` (in `internal/cli`) — a `.token.json` in
+  the working directory is never read, imported, moved or deleted; the session
+  comes from a fresh login and stderr warns (A.I.G T09).
+  `TestNoUserCacheDirDisablesTokenCacheInsteadOfUsingWorkingDir` — with no user
+  cache dir, caching turns off instead of falling back to the working directory.
+- `TestConfigWarningsReachStderr` (in `internal/cli`) — ignored path settings
+  print to stderr even with `LOG_LEVEL=error`.
+  `TestConfigSetTokenCachePathRefusedInWorkingDir` — `config set` won't write a
+  `token_cache_path` that would be ignored.
+- `internal/config/skill_doc_test.go`: `TestSkillFrontmatterFollowsAgentSkillsSpec`
+  (Agent Skills fields, name, directory, description), `TestSkillDescriptionDisclosesLocalWrites` (TP4) and
+  `TestAgentDocsRequireExplicitRequestBeforeReadingWorkouts` (SQP-1, checks both
+  `SKILL.md` and `docs/MACHINE_CONTRACT.md`).
 
 When you add a safeguard, add the matching test in the same PR. Name it so the
 guarantee is obvious, and assert the **negative** (the bad thing does NOT happen),
@@ -168,3 +225,25 @@ If a finding can't be fixed because the behavior is essential and already minima
    broad env mutation even though *some* credential reading is unavoidable).
 3. Record the rationale here and in the PR so the next reviewer doesn't re-litigate
    it. Never silence a scanner by obfuscating honest code.
+
+Known false positives (SkillSpector 2.12.0, read from its source):
+
+- **PE3 "Credential Access" at 60% on `.env`.** The rule is a regex,
+  `(?<!\w)\.env(...)?(\s|$|['"])`, that fires on any literal `.env` mention. The
+  tool really does read `.env` and declares it, so the remaining hits (SKILL.md
+  permissions and env descriptions, the `.env` warning and the missing-credentials
+  message in `config.go`) are accepted.
+- **"shell" capability.** LP-family rules detect shell via `\bchmod\b`, which
+  matches `f.Chmod(0o600)`, the owner-only permission re-tighten. Nothing runs a
+  subprocess (`TestSkillDocPromisesNoShellOut`), so `shell` is not declared.
+- **LP3 "no tool scope declared".** LP3 reads only a top-level `permissions`
+  list or `allowed-tools`. `permissions` isn't an Agent Skills field, and
+  `allowed-tools` pre-approves tools rather than declaring them, so neither is
+  added. The real scope is in `metadata.openclaw.permissions`.
+- **LP4 "file_read declared but not detected".** SkillSpector's `file_read`
+  patterns are Python and JS shapes (`open(...'r')`, `read_text`, `os.listdir`);
+  Go's `os.ReadFile` doesn't match. The binary does read config, plan and token
+  files, so `file_read` stays declared.
+- **A shipped baseline can't suppress these.** SkillSpector applies an author's
+  `.skillspector-baseline.yaml` only with `--use-shipped-baseline`, and clawhub
+  never ships dotfiles.

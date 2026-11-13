@@ -25,6 +25,7 @@ type App struct {
 
 	cfg    *config.Config
 	logger *slog.Logger
+	stderr io.Writer
 }
 
 // NewRootCmd builds the root command and registers every subcommand. A fresh
@@ -49,7 +50,8 @@ func NewRootCmd() *cobra.Command {
 		},
 		// Initialize the stderr logger before any command body runs.
 		PersistentPreRunE: func(cmd *cobra.Command, _ []string) error {
-			app.logger = newLogger(cmd.ErrOrStderr(), app.verbose)
+			app.stderr = cmd.ErrOrStderr()
+			app.logger = newLogger(app.stderr, app.verbose)
 			return nil
 		},
 	}
@@ -93,8 +95,18 @@ func (a *App) resolveConfig() (*config.Config, error) {
 	if err != nil {
 		return nil, withCode(ExitConfig, err)
 	}
+	a.warnConfig(cfg)
 	a.cfg = cfg
 	return cfg, nil
+}
+
+func (a *App) warnConfig(cfg *config.Config) {
+	if a.stderr == nil {
+		return
+	}
+	for _, w := range cfg.Warnings {
+		fprintf(a.stderr, "warning: %s\n", w)
+	}
 }
 
 // newLogger returns a slog text logger writing to w (stderr). Default level is

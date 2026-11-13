@@ -35,11 +35,13 @@ built-in defaults**.
    `SPEEDIANCE_DEVICE_TYPE` (`1` = Gym Monster v1, the only tested device). A gitignored
    **`.env`** file in the working directory is read automatically for these `SPEEDIANCE_*`
    keys (real exported variables take precedence over it), so they can live in `.env` instead
-   of being exported. Only the `SPEEDIANCE_*` keys are read from `.env`; the file is parsed
-   into a map and any other keys are ignored — nothing is injected into the process environment.
+   of being exported. Only those four keys are read from `.env`; the file is parsed into a map
+   and any other keys are ignored — nothing is injected into the process environment. The path
+   overrides `SPEEDIANCE_CONFIG` and `SPEEDIANCE_TOKEN_CACHE` are honored only when exported,
+   never from `.env`.
 2. **`config.json`** in the working directory — copy `config.example.json` to
    `config.json` and fill it in. This file is gitignored; never commit it. (You can also
-   point `--config PATH` or `SPEEDIANCE_CONFIG` at an explicit file.)
+   point `--config PATH` or an exported `SPEEDIANCE_CONFIG` at an explicit file.)
 3. If neither is set, **ask the user** (or read from their secret store / password
    manager). Do not invent or guess credentials.
 
@@ -69,8 +71,9 @@ speediance-cli workouts --days 7 --json
 speediance-cli session <training_id> --json
 ```
 
-**The tool auto-detects the session type — the agent stays dumb.** When the client
-says they did a workout, call `today`: it finds the day's session(s) and returns
+**The tool auto-detects the session type — the agent stays dumb.** When the user asks
+for their Speediance data, or confirms they want it fetched, call `today`. A passing
+mention of exercising is not a request to read their account: ask first. `today` finds the day's session(s) and returns
 each fully resolved, without you knowing whether it was a program, free weights, or
 rowing. `session <id>` does the same for one id (probes the program namespace, then
 free).
@@ -107,8 +110,8 @@ speediance-cli library            # writes library.json: {id, name, muscle, tab}
 speediance-cli library --search "row" --json
 ```
 
-A committed `library.json` snapshot ships with the repo (Gym Monster 1); regenerate it
-with the command above for the freshest catalog or a different device.
+The GitHub repo keeps a `library.json` snapshot (Gym Monster 1), but the published skill
+package doesn't include it; run the command above to get the catalog locally.
 
 ```bash
 # 2) write a plan JSON (you, the agent, author this), then:
@@ -156,8 +159,11 @@ per-set detail to store.
 - **Token cache:** the session token is cached in the OS user-**cache** dir by default
   (non-roaming; `config path` shows the resolved location), **not** the working directory
   (so running the CLI from another repo can't drop a credential into it) and **not** the
-  roaming config dir (so a live token isn't synced across machines). Override with
-  `SPEEDIANCE_TOKEN_CACHE` or the `token_cache_path` config key.
+  roaming config dir (so a live token isn't synced across machines). Override with an
+  exported `SPEEDIANCE_TOKEN_CACHE` or the `token_cache_path` config key. That key counts
+  only in a file chosen by `--config`, an exported `SPEEDIANCE_CONFIG`, or the user-config
+  dir; a working-directory `config.json` can't set it, and the CLI warns on stderr when it
+  ignores one.
 - **Secrets:** `config.json`, `.token.json`, `.env` are gitignored. Never commit them.
 - **Device:** tested for Gym Monster 1 only; GM2 untested.
 - **Unofficial API:** all endpoints live in `internal/api`; if the Speediance app updates

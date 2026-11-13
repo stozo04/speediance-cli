@@ -4,7 +4,9 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"regexp"
 	"runtime"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -94,11 +96,6 @@ func TestSkillDocAdvertisesFileAccess(t *testing.T) {
 	}
 }
 
-// TestSkillDocPromisesNoShellOut backs the same §0 cornerstone (and
-// CLAWHUB_STANDARDS §4/§5): the skill advertises `requires.bins: []` — a single
-// static binary that never shells out — so no production Go source may import
-// os/exec. Asserting the negative across the tree fails the build the moment a
-// shell-out is introduced without updating the advertised permissions.
 func TestSkillDocPromisesNoShellOut(t *testing.T) {
 	root := repoRoot(t)
 
@@ -106,8 +103,8 @@ func TestSkillDocPromisesNoShellOut(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read SKILL.md: %v", err)
 	}
-	if !strings.Contains(string(skill), "bins: []") {
-		t.Error("SKILL.md must declare requires.bins: [] (single static binary, no external tools)")
+	if !strings.Contains(string(skill), "      bins:\n        - speediance-cli\n      env:") {
+		t.Error("SKILL.md requires.bins must list exactly speediance-cli: OpenClaw gates the skill on it, and the binary needs no other tool")
 	}
 
 	walkErr := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
@@ -131,11 +128,106 @@ func TestSkillDocPromisesNoShellOut(t *testing.T) {
 		}
 		if strings.Contains(string(src), `"os/exec"`) {
 			rel, _ := filepath.Rel(root, path)
-			t.Errorf("%s imports os/exec, but the skill advertises no shell-out (requires.bins: []) — advertised != actual", rel)
+			t.Errorf("%s imports os/exec, but the skill declares no binary besides speediance-cli — advertised != actual", rel)
 		}
 		return nil
 	})
 	if walkErr != nil {
 		t.Fatalf("walk source tree: %v", walkErr)
+	}
+}
+
+func skillFrontmatter(t *testing.T) string {
+	t.Helper()
+	skill, err := os.ReadFile(filepath.Join(repoRoot(t), "SKILL.md"))
+	if err != nil {
+		t.Fatalf("read SKILL.md: %v", err)
+	}
+	doc := strings.TrimPrefix(string(skill), "---\n")
+	end := strings.Index(doc, "\n---")
+	if end < 0 {
+		t.Fatal("SKILL.md has no closing frontmatter fence")
+	}
+	return doc[:end]
+}
+
+var agentSkillsFrontmatterFields = []string{"name", "description", "license", "compatibility", "metadata", "allowed-tools"}
+
+var agentSkillsName = regexp.MustCompile(`^[a-z0-9]+(-[a-z0-9]+)*$`)
+
+const agentSkillsMaxNameLen = 64
+
+const agentSkillsMaxDescriptionLen = 1024
+
+func TestSkillFrontmatterFollowsAgentSkillsSpec(t *testing.T) {
+	fm := skillFrontmatter(t)
+	var name string
+	for _, line := range strings.Split(fm, "\n") {
+		if line == "" || line[0] == ' ' || line[0] == '#' {
+			continue
+		}
+		key, value, _ := strings.Cut(line, ":")
+		if !slices.Contains(agentSkillsFrontmatterFields, key) {
+			t.Errorf("SKILL.md top-level key %q is not an Agent Skills field %q; put runtime metadata under metadata.openclaw", key, agentSkillsFrontmatterFields)
+		}
+		if key == "name" {
+			name = strings.TrimSpace(value)
+		}
+	}
+	if len(name) == 0 || len(name) > agentSkillsMaxNameLen || !agentSkillsName.MatchString(name) {
+		t.Errorf("SKILL.md name %q breaks the Agent Skills name rules", name)
+	}
+	for _, harness := range []string{".claude", ".codex", ".cursor"} {
+		dir := filepath.Join(repoRoot(t), harness, "skills", name)
+		if _, err := os.Stat(filepath.Join(dir, "SKILL.md")); err != nil {
+			t.Errorf("no %s/skills/%s/SKILL.md: Agent Skills requires the directory to match the skill name", harness, name)
+		}
+	}
+	description := skillDescription(t, fm)
+	if n := len([]rune(description)); n == 0 || n > agentSkillsMaxDescriptionLen {
+		t.Errorf("SKILL.md description is %d characters; Agent Skills allows 1-%d", n, agentSkillsMaxDescriptionLen)
+	}
+	if !strings.Contains(description, "Use when") {
+		t.Error("SKILL.md description should say when to use the skill (Agent Skills spec)")
+	}
+}
+
+func skillDescription(t *testing.T, fm string) string {
+	t.Helper()
+	start := strings.Index(fm, "description:")
+	end := strings.Index(fm, "\nmetadata:")
+	if start < 0 || end < start {
+		t.Fatal("SKILL.md description must come right before metadata")
+	}
+	body := strings.TrimPrefix(fm[start:end], "description:")
+	body = strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(body), ">"))
+	return strings.Join(strings.Fields(body), " ")
+}
+
+func TestSkillDescriptionDisclosesLocalWrites(t *testing.T) {
+	description := skillDescription(t, skillFrontmatter(t))
+	for _, want := range []string{"token cache", "config set", "password", "library"} {
+		if !strings.Contains(description, want) {
+			t.Errorf("SKILL.md description does not disclose %q; SkillSpector TP4 compares the description with what the code writes", want)
+		}
+	}
+}
+
+func TestAgentDocsRequireExplicitRequestBeforeReadingWorkouts(t *testing.T) {
+	root := repoRoot(t)
+	for _, rel := range []string{"SKILL.md", filepath.Join("docs", "MACHINE_CONTRACT.md")} {
+		data, err := os.ReadFile(filepath.Join(root, rel))
+		if err != nil {
+			t.Fatalf("read %s: %v", rel, err)
+		}
+		doc := strings.Join(strings.Fields(string(data)), " ")
+		if !strings.Contains(doc, "A passing mention of exercising is not a request to read their account: ask first.") {
+			t.Errorf("%s must tell agents to ask before calling today on a passing workout mention (SkillSpector SQP-1)", rel)
+		}
+		for _, broad := range []string{`just says "I did a workout," call`, "says they did a workout, call"} {
+			if strings.Contains(doc, broad) {
+				t.Errorf("%s still treats a passing workout mention as a trigger: %q", rel, broad)
+			}
+		}
 	}
 }

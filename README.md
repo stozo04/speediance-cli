@@ -21,7 +21,7 @@ same `--json`).
 > it is currently **UNTESTED**. Set `SPEEDIANCE_DEVICE_TYPE` (or `device_type` in
 > config.json) if you want to try another device.
 
-> Point an agent at this repo. See **[AGENTS.md](AGENTS.md)** for the full self-serve guide
+> Point an agent at this repo. See **[the machine contract](docs/MACHINE_CONTRACT.md)** for the full self-serve guide
 > (setup, credentials, command surface, plan schema).
 
 > Unofficial — uses the Speediance cloud API reverse-engineered from the Android app.
@@ -46,7 +46,7 @@ speediance-cli login
 Credentials via env vars (`SPEEDIANCE_EMAIL`, `SPEEDIANCE_PASSWORD`, `SPEEDIANCE_REGION`),
 a gitignored `config.json`, or a gitignored `.env` file in the working directory (auto-loaded;
 real exported env vars take precedence over it) — see `.env.example` / `config.example.json` and
-[AGENTS.md](AGENTS.md). SSO/Google accounts: set a password in the Speediance app once.
+[the machine contract](docs/MACHINE_CONTRACT.md). SSO/Google accounts: set a password in the Speediance app once.
 
 ## Commands
 
@@ -81,7 +81,7 @@ Author a plan (a human, a coach, or an LLM can write it), then `push` it:
 ```
 
 `weight` is kilograms; `mode` 1=Standard; `rest` in seconds. Get `id`s from
-`speediance-cli library`. Full schema and field notes in [AGENTS.md](AGENTS.md).
+`speediance-cli library`. Full schema and field notes in [the machine contract](docs/MACHINE_CONTRACT.md).
 
 ## Conventions
 
@@ -123,9 +123,11 @@ GitHub Actions — no manual publish step needed.
   `~/.cache/speediance/token.json`; `%LocalAppData%\speediance\token.json` on Windows),
   **not** the working directory — so it can't be swept into a commit — and in the
   **non-roaming** cache dir rather than the roaming config dir, so a live credential
-  isn't synced across machines. Override with `SPEEDIANCE_TOKEN_CACHE` or the
-  `token_cache_path` config key; `config path` shows where it resolved. An older
-  `.token.json` in the working directory is migrated automatically on first run.
+  isn't synced across machines. Override with an exported `SPEEDIANCE_TOKEN_CACHE`
+  or the `token_cache_path` config key (ignored, with a warning, in a working-directory
+  `config.json`; use `--config` or the user-config dir); `config path` shows where it resolved. An older
+  `.token.json` in the working directory is never read (a planted one could switch accounts); the
+  CLI warns so you can delete it, and you log in once more.
 - "Free Lift" (freestyle) sessions return totals only — no per-set detail. Programs do.
 - `library.json` is a committed **snapshot** of the exercise catalog for convenience;
   regenerate it anytime with `speediance-cli library`.

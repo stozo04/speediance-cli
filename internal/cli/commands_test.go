@@ -301,13 +301,7 @@ func TestAuthErrorExitsTwo(t *testing.T) {
 	}
 }
 
-// TestEndToEndMigratesLegacyTokenToCacheDir exercises the full wired path through
-// the real command tree (NewRootCmd → resolveConfig → MigrateLegacy → token load
-// → API call → token write-back) against a fake API server. It is the end-to-end
-// proof of the issue #17 fix plus the CLI_CONVENTIONS.md §1 cache-dir move: a
-// legacy ./.token.json is relocated up to the per-user CACHE dir (not CWD, not the
-// roaming config dir), and the SAME session is reused — no forced re-login.
-func TestEndToEndMigratesLegacyTokenToCacheDir(t *testing.T) {
+func TestPlantedLegacyTokenIsNeverUsed(t *testing.T) {
 	srv := fakeAPI(t)
 	defer srv.Close()
 
@@ -316,18 +310,14 @@ func TestEndToEndMigratesLegacyTokenToCacheDir(t *testing.T) {
 	clearSpeedianceEnv(t)
 	t.Setenv("SPEEDIANCE_EMAIL", "e@example.com")
 	t.Setenv("SPEEDIANCE_PASSWORD", "pw")
-
-	// Point the per-user CACHE base at a temp dir so the default token path
-	// resolves there instead of the real user cache dir. Deliberately do NOT set
-	// SPEEDIANCE_TOKEN_CACHE — migration only runs for the default (unset) path.
 	cacheHome := t.TempDir()
-	t.Setenv("LocalAppData", cacheHome)   // Windows UserCacheDir
-	t.Setenv("XDG_CACHE_HOME", cacheHome) // Linux/BSD UserCacheDir
-	t.Setenv("HOME", cacheHome)           // macOS derives the cache base
+	t.Setenv("LocalAppData", cacheHome)
+	t.Setenv("XDG_CACHE_HOME", cacheHome)
+	t.Setenv("HOME", cacheHome)
 
-	// A token cached the OLD way: ./.token.json in the working directory.
-	legacy := filepath.Join(cwd, ".token.json")
-	if err := os.WriteFile(legacy, []byte(`{"token":"LEGACY","user_id":"99"}`), 0o600); err != nil {
+	planted := filepath.Join(cwd, ".token.json")
+	plantedBody := []byte(`{"token":"PLANTED","user_id":"99"}`)
+	if err := os.WriteFile(planted, plantedBody, 0o600); err != nil {
 		t.Fatal(err)
 	}
 
@@ -343,24 +333,25 @@ func TestEndToEndMigratesLegacyTokenToCacheDir(t *testing.T) {
 		t.Fatalf("workouts failed: %v\nstderr: %s", err, errb.String())
 	}
 
-	// 1) The credential no longer sits in the working directory.
-	if _, err := os.Stat(legacy); !os.IsNotExist(err) {
-		t.Errorf("legacy ./.token.json still present after run (stat err = %v); migration must remove it", err)
-	}
-
-	// 2) It now lives under the per-user CACHE base (non-roaming), carrying the
-	//    SAME token — proof the session was preserved, not re-logged-in.
 	cacheBase, err := os.UserCacheDir()
 	if err != nil {
 		t.Fatalf("UserCacheDir: %v", err)
 	}
-	migrated := filepath.Join(cacheBase, "speediance", "token.json")
-	data, err := os.ReadFile(migrated)
+	cached, err := os.ReadFile(filepath.Join(cacheBase, "speediance", "token.json"))
 	if err != nil {
-		t.Fatalf("token not found at cache-dir location %s: %v", migrated, err)
+		t.Fatalf("read per-user token cache: %v", err)
 	}
-	if !strings.Contains(string(data), "LEGACY") {
-		t.Errorf("migrated token cache = %s, want it to preserve the LEGACY session token", data)
+	if strings.Contains(string(cached), "PLANTED") {
+		t.Errorf("per-user cache = %s; a working-directory .token.json must never be imported", cached)
+	}
+	if !strings.Contains(string(cached), `"T"`) {
+		t.Errorf("per-user cache = %s, want the token from a fresh login", cached)
+	}
+	if got, _ := os.ReadFile(planted); !bytes.Equal(got, plantedBody) {
+		t.Errorf("planted file changed to %s; the CLI must not touch it", got)
+	}
+	if !strings.Contains(errb.String(), ".token.json") {
+		t.Errorf("stderr = %q, want a warning that the working-directory .token.json is ignored", errb.String())
 	}
 }
 
@@ -763,5 +754,161 @@ func TestVersionJSON(t *testing.T) {
 		if _, ok := v[k]; !ok {
 			t.Errorf("version json missing %q", k)
 		}
+	}
+}
+
+func TestConfigWarningsReachStderr(t *testing.T) {
+	t.Setenv("LOG_LEVEL", "error")
+	dir := t.TempDir()
+	t.Chdir(dir)
+	clearSpeedianceEnv(t)
+	userBase := t.TempDir()
+	for _, k := range []string{"HOME", "XDG_CONFIG_HOME", "XDG_CACHE_HOME", "AppData", "LocalAppData"} {
+		t.Setenv(k, userBase)
+	}
+	planted := filepath.Join(dir, "planted-token.json")
+	if err := os.WriteFile(filepath.Join(dir, "config.json"),
+		[]byte(`{"token_cache_path":`+strconv.Quote(planted)+`}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	root := NewRootCmd()
+	var out, errb bytes.Buffer
+	root.SetOut(&out)
+	root.SetErr(&errb)
+	root.SetArgs([]string{"config", "path"})
+	if err := root.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(errb.String(), "token_cache_path") {
+		t.Errorf("stderr = %q, want a warning that token_cache_path was ignored", errb.String())
+	}
+	if strings.Contains(out.String(), planted) {
+		t.Errorf("stdout = %q; the planted token path must not be used", out.String())
+	}
+}
+
+func runConfigSet(t *testing.T, args ...string) (stderr string, err error) {
+	t.Helper()
+	dir := t.TempDir()
+	t.Chdir(dir)
+	clearSpeedianceEnv(t)
+	userBase := t.TempDir()
+	for _, k := range []string{"HOME", "XDG_CONFIG_HOME", "XDG_CACHE_HOME", "AppData", "LocalAppData"} {
+		t.Setenv(k, userBase)
+	}
+	root := NewRootCmd()
+	var out, errb bytes.Buffer
+	root.SetOut(&out)
+	root.SetErr(&errb)
+	root.SetArgs(args)
+	err = root.Execute()
+	return errb.String(), err
+}
+
+func TestConfigSetTokenCachePathRefusedInWorkingDir(t *testing.T) {
+	stderr, err := runConfigSet(t, "config", "set", "token_cache_path", "/tmp/elsewhere.json")
+	if err == nil {
+		t.Fatalf("config set token_cache_path succeeded in a working-directory config; stderr = %q", stderr)
+	}
+	if _, statErr := os.Stat("config.json"); statErr == nil {
+		t.Error("config.json was written despite the refusal")
+	}
+}
+
+func TestConfigSetTokenCachePathAllowedWithExplicitConfig(t *testing.T) {
+	explicit := filepath.Join(t.TempDir(), "explicit.json")
+	if _, err := runConfigSet(t, "--config", explicit, "config", "set", "token_cache_path", "/tmp/elsewhere.json"); err != nil {
+		t.Fatalf("config set with --config failed: %v", err)
+	}
+	data, err := os.ReadFile(explicit)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(data), "/tmp/elsewhere.json") {
+		t.Errorf("explicit config = %s, want token_cache_path written", data)
+	}
+}
+
+func TestLegacyTokenWarningShownEvenWithoutCredentials(t *testing.T) {
+	cwd := t.TempDir()
+	t.Chdir(cwd)
+	clearSpeedianceEnv(t)
+	userBase := t.TempDir()
+	for _, k := range []string{"HOME", "XDG_CONFIG_HOME", "XDG_CACHE_HOME", "AppData", "LocalAppData"} {
+		t.Setenv(k, userBase)
+	}
+	if err := os.WriteFile(filepath.Join(cwd, ".token.json"), []byte(`{"token":"PLANTED"}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	root := NewRootCmd()
+	var out, errb bytes.Buffer
+	root.SetOut(&out)
+	root.SetErr(&errb)
+	root.SetArgs([]string{"workouts", "--json"})
+	if err := root.Execute(); err == nil {
+		t.Fatal("workouts succeeded without credentials")
+	}
+	if !strings.Contains(errb.String(), ".token.json") {
+		t.Errorf("stderr = %q, want the legacy-token warning even when credentials are missing", errb.String())
+	}
+}
+
+func TestNoLegacyWarningWhenExportedCacheIsThatFile(t *testing.T) {
+	cwd := t.TempDir()
+	t.Chdir(cwd)
+	clearSpeedianceEnv(t)
+	t.Setenv("SPEEDIANCE_EMAIL", "e@example.com")
+	t.Setenv("SPEEDIANCE_PASSWORD", "pw")
+	if err := os.WriteFile(filepath.Join(cwd, ".token.json"), []byte(`{"token":"T","user_id":"1"}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	for _, exported := range []string{"./.token.json", filepath.Join(cwd, ".token.json")} {
+		t.Setenv("SPEEDIANCE_TOKEN_CACHE", exported)
+		app := &App{stderr: &bytes.Buffer{}}
+		cfg, err := app.resolveConfig()
+		if err != nil {
+			t.Fatal(err)
+		}
+		app.warnAboutLegacyToken(cfg)
+		if got := app.stderr.(*bytes.Buffer).String(); got != "" {
+			t.Errorf("SPEEDIANCE_TOKEN_CACHE=%s: stderr = %q, want no warning about the active cache", exported, got)
+		}
+	}
+}
+
+func TestLoginDoesNotClaimCacheWhenCachingIsOff(t *testing.T) {
+	srv := fakeAPI(t)
+	defer srv.Close()
+
+	t.Chdir(t.TempDir())
+	clearSpeedianceEnv(t)
+	t.Setenv("SPEEDIANCE_EMAIL", "e@example.com")
+	t.Setenv("SPEEDIANCE_PASSWORD", "pw")
+	for _, k := range []string{"HOME", "XDG_CACHE_HOME", "XDG_CONFIG_HOME", "LocalAppData", "AppData"} {
+		t.Setenv(k, "")
+		_ = os.Unsetenv(k)
+	}
+	if _, err := os.UserCacheDir(); err == nil {
+		t.Skip("this platform still resolves a user cache dir without HOME")
+	}
+	baseURLOverride = srv.URL
+	t.Cleanup(func() { baseURLOverride = "" })
+
+	root := NewRootCmd()
+	var out, errb bytes.Buffer
+	root.SetOut(&out)
+	root.SetErr(&errb)
+	root.SetArgs([]string{"login"})
+	if err := root.Execute(); err != nil {
+		t.Fatalf("login failed: %v\nstderr: %s", err, errb.String())
+	}
+	if strings.Contains(out.String(), "Token cached to") {
+		t.Errorf("stdout = %q; login must not claim a cache it didn't write", out.String())
+	}
+	if !strings.Contains(out.String(), "Token not cached") {
+		t.Errorf("stdout = %q, want it to say the token wasn't cached", out.String())
 	}
 }

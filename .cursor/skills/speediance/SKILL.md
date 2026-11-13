@@ -4,10 +4,14 @@ description: >
   Read completed workouts (summaries and full per-set detail), browse and export the
   exercise catalog, and push custom training programs to your Speediance (Gym Monster)
   smart cable machine via its cloud API. Authenticates with your account credentials,
-  caches a session token in your OS user-cache directory (override with SPEEDIANCE_TOKEN_CACHE),
+  caches a session token in your OS user-cache directory (override with an exported SPEEDIANCE_TOKEN_CACHE),
   and makes outbound HTTPS requests to the Speediance cloud API. Reads and emits structured
-  data — the caller decides where to store it. Ships as a single static binary — no Python or
-  other runtime required.
+  data. It writes local files only in these cases: the session token cache; config.json when you
+  run `config set`, which stores the value you give it (including a password) as plain JSON with
+  owner-only permissions; and the exercise catalog that the `library` command saves (default
+  library.json). Ships as a single static binary — no Python or other runtime required. Use when
+  the user asks for their Speediance or Gym Monster workout data, wants to look up exercises, or
+  wants to create a training program on the machine.
 metadata:
   openclaw:
     emoji: 🏋️
@@ -18,15 +22,16 @@ metadata:
         - "Speediance cloud API (HTTPS) — authentication, workout history, exercise catalog, program creation"
       files.read:
         - "config.json — optional credential/config file (working directory, or your OS user-config dir)"
-        - ".env — optional env file in the working directory; only the documented SPEEDIANCE_* keys are read (parsed to a map, never exported into the process environment)"
-        - "token cache — cached session token in your OS user-cache dir by default (non-roaming); path overridable via SPEEDIANCE_TOKEN_CACHE or the token_cache_path config key. A legacy .token.json in the working directory is read once to migrate it."
+        - ".env — optional env file in the working directory; only the SPEEDIANCE_EMAIL, SPEEDIANCE_PASSWORD, SPEEDIANCE_REGION and SPEEDIANCE_DEVICE_TYPE keys are read (parsed to a map, never exported into the process environment); the path keys SPEEDIANCE_CONFIG and SPEEDIANCE_TOKEN_CACHE are ignored there"
+        - "token cache — cached session token in your OS user-cache dir by default (non-roaming); path overridable via an exported SPEEDIANCE_TOKEN_CACHE, or the token_cache_path key of a config.json given by --config, SPEEDIANCE_CONFIG or the user-config dir (ignored in a working-directory config.json). A legacy .token.json in the working directory is never read; the CLI only warns that it exists."
         - "plan JSON files passed to the push command"
       files.write:
-        - "token cache — session token written after login and refreshed automatically; in your OS user-cache dir by default (non-roaming; override via SPEEDIANCE_TOKEN_CACHE or token_cache_path). A legacy .token.json in the working directory is relocated here and then removed."
+        - "token cache — session token written after login and refreshed automatically; in your OS user-cache dir by default (non-roaming; override via an exported SPEEDIANCE_TOKEN_CACHE or token_cache_path, which a working-directory config.json can't set). A legacy .token.json in the working directory is never read, moved or removed."
         - "library.json — exercise catalog dump (library command; every run writes the full catalog to --out, default library.json)"
         - "config.json — written by the config set command (owner-only permissions)"
     requires:
-      bins: []
+      bins:
+        - speediance-cli
       env:
         - SPEEDIANCE_EMAIL
         - SPEEDIANCE_PASSWORD
@@ -44,10 +49,10 @@ metadata:
         description: "Device type integer — 1 = Gym Monster v1 (default, tested). Gym Monster 2 is untested; try 2 if exercises look wrong."
         required: false
       - name: SPEEDIANCE_CONFIG
-        description: "Path to config.json (overrides discovery: working dir, then OS user-config dir)"
+        description: "Path to config.json (overrides discovery: working dir, then OS user-config dir). Read from the exported environment only, never from .env"
         required: false
       - name: SPEEDIANCE_TOKEN_CACHE
-        description: "Override the token cache file location (default: OS user-cache dir)"
+        description: "Override the token cache file location (default: OS user-cache dir). Read from the exported environment only, never from .env"
         required: false
 ---
 
@@ -104,10 +109,12 @@ Alternatively, write a `config.json` in the working directory (gitignored by the
 }
 ```
 
-You can also put these variables in a gitignored **`.env`** file in the working directory — the
-`SPEEDIANCE_*` keys are read from it automatically (exported environment variables still take
-precedence). Only those keys are read; the file is parsed into a map and any other keys are
-ignored, so a stray `.env` can never inject unrelated variables into the process environment.
+You can also put these four variables in a gitignored **`.env`** file in the working directory —
+they are read from it automatically (exported environment variables still take precedence). Only
+those keys are read; the file is parsed into a map and any other keys are ignored, so a stray `.env`
+can never inject unrelated variables into the process environment. The path overrides
+`SPEEDIANCE_CONFIG` and `SPEEDIANCE_TOKEN_CACHE` must be exported (or passed as `--config`): a `.env`
+can't redirect where config is read from or where the session token is written.
 
 ## Commands
 
@@ -120,9 +127,11 @@ speediance-cli workouts --days 7 --json      # recent sessions (summaries, for p
 speediance-cli session <training_id> --json  # full, verbatim detail for one session
 ```
 
-**`today` is the one-shot, agent-friendly entry point.** When the client just says
-"I did a workout," call `today` — you do **not** need to know whether it was a
-program, free weights, or a rowing/ski session. The tool finds the day's session(s)
+**`today` is the one-shot, agent-friendly entry point.** Call it only when the user
+asks for their Speediance data (for example "pull today's Speediance workout"), or
+after they confirm they want it fetched. A passing mention of exercising is not a
+request to read their account: ask first. You do **not** need to know whether the
+session was a program, free weights, or a rowing/ski session. The tool finds the day's session(s)
 and returns each one fully resolved, as an array of the same `{training_id, kind,
 info, detail}` shape that `session` emits. (`kind` is `"program"`, `"free"`, or
 `""`.)
@@ -245,9 +254,8 @@ speediance-cli library                           # save full catalog to library.
 Returns `[{id, name, muscle, tab}]`. The `id` is required for plan JSON.
 Every run saves the full catalog to `--out` (default `library.json`) — `--search`
 filters only the stdout view, it does not narrow the saved file.
-A committed `library.json` snapshot ships with the repo (Gym Monster v1) for offline
-browsing — regenerate with `speediance-cli library` to get the freshest catalog or a
-different device's exercises.
+The skill package doesn't bundle a catalog. Run `speediance-cli library` once to save it
+locally; a Gym Monster v1 snapshot also lives in the GitHub repo for offline browsing.
 
 ### Create a training program
 
@@ -322,9 +330,12 @@ layout.
   on Linux, `~/Library/Caches/speediance/token.json` on macOS) and refreshed automatically on
   expiry — *not* in the working directory (so it can't be swept into a commit) and *not* in the
   roaming config dir (so a live credential isn't synced across machines). Override the location with
-  `SPEEDIANCE_TOKEN_CACHE` or the `token_cache_path` config key; run `speediance-cli config path` to
-  see where it resolved. A token left in a legacy `.token.json` by an older version is moved to the
-  per-user location on first run.
+  an exported `SPEEDIANCE_TOKEN_CACHE` or the `token_cache_path` config key; run `speediance-cli config path` to
+  see where it resolved. `token_cache_path` counts only in a config file chosen by `--config`, an
+  exported `SPEEDIANCE_CONFIG` or the user-config dir: a `config.json` that's simply in the working
+  directory can't choose where the token is written, and the CLI warns on stderr when it ignores one.
+  A `.token.json` left in the working directory by an older version is never read, since a planted
+  one could switch accounts; the CLI warns so you can delete it, and you log in once more.
 - **Dry-run first**: always use `--dry-run` before `push` when authoring new programs to
   confirm exercise IDs resolved correctly.
 - If an endpoint breaks after a Speediance app update, all API calls live in

@@ -221,6 +221,10 @@ Known false positives (SkillSpector 2.12.0, read from its source):
 - **"shell" capability.** LP-family rules detect shell via `\bchmod\b`, which
   matches `f.Chmod(0o600)`, the owner-only permission re-tighten. Nothing runs a
   subprocess (`TestSkillDocPromisesNoShellOut`), so `shell` is not declared.
+- **LP4 "file_read declared but not detected".** SkillSpector's `file_read`
+  patterns are Python and JS shapes (`open(...'r')`, `read_text`, `os.listdir`);
+  Go's `os.ReadFile` doesn't match. The binary does read config, plan and token
+  files, so `file_read` stays declared.
 - **A shipped baseline can't suppress these.** SkillSpector applies an author's
   `.skillspector-baseline.yaml` only with `--use-shipped-baseline`, and clawhub
   never ships dotfiles.

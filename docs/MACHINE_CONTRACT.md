@@ -101,8 +101,6 @@ values (e.g. a rowing split = `distance / time`, not the per-interval `pace` fie
 which is instantaneous) rather than trusting one field. A `trainingId` can mean
 different sessions across namespaces; auto-detect prefers program, and
 `--free`/`--program` force a namespace when an id is ambiguous.
-See **[API Notes & Telemetry Caveats](API_NOTES.md)** for detailed data-interpretation rules
-(dual-cable tension curves, ragged channel lengths, `completionMethod` definitions, and unit semantics).
 
 ## 4. Create a workout (so it appears on the machine)
 

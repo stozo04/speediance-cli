@@ -1,16 +1,20 @@
 # Speediance API — Data Model & Telemetry Notes
 
-Everything here was verified against the live Speediance cloud API on real accounts.
-These notes document the data quirks, wire-format semantics, and traps inherent in the
-reverse-engineered API. Most of them fail *silently*, which is why they are documented here.
+These notes document empirical observations from the Speediance cloud API on a live
+Gym Monster 1 account (app v4.4.0, device_type=1, Global region, observed November 2026).
+These notes document data quirks, wire-format semantics, and traps observed in the
+reverse-engineered API to help callers interpret sessions and avoid silent data corruption.
+Most of them fail *silently*, which is why they are documented here.
 
 ---
 
 ## 1. `Versioncode` Gates Content (Not Cosmetic)
 
+*(Note: Addressed in speediance-cli v2.0.2 / PR #44 by raising default `appVersionCode` to `40400`)*
+
 The HTTP client sends a `Versioncode` header indicating the client app release.
 **Speediance gates newer content behind newer version codes.** Any request whose response
-contains gated exercises is rejected outright:
+contains gated exercises was observed to be rejected outright:
 
 ```json
 {
@@ -20,10 +24,10 @@ contains gated exercises is rejected outright:
 ```
 
 For example, Vita exercises shipped in app **v4.4.0**, so `Versioncode` must be **>= 40400**.
-Confirmed by bisection against the live API: `40399` was blocked, `40400` was accepted.
+Observed by bisection against the live API: `40399` was blocked, `40400` was accepted.
 
 The critical trap is the *silent* half: the workout-detail endpoint returns an explicit code 98 error,
-but the **library endpoint simply omits the gated exercises** (e.g. 885 results instead of 892,
+but the **library endpoint simply omits the gated exercises** (e.g. 914 results at 40304 vs 921 at 40400,
 with code 0 and no error). If exercises known to exist in the app are missing from the catalog,
 check `Versioncode` first.
 
@@ -41,13 +45,13 @@ On exercise objects in session details, always read `completionMethod` before in
 A timed set reading `finishedCount: 15, targetCount: 20` with `completionMethod: 5` indicates
 **15 reps achieved within a 20-second window** — not an incomplete or failed set.
 
-Per set, `time` is the seconds actually spent working. `time: 0` with `finishedCount: 0` means
-the set was skipped.
+Per set, `time` is the seconds actually spent working. `time: 0` with `finishedCount: 0` was
+consistently observed when a set was skipped.
 
 ## 3. Vita Intensity is a Level (in `level`), Not Resistance
 
-Vita exercises (`dataStatType: 6`) store intensity in a **`level`** CSV, while `weights` is
-sent as all zeros:
+On observed Vita exercises (`dataStatType: 6`), intensity was recorded in a **`level`** CSV,
+while `weights` was sent as all zeros:
 
 ```
 Vita Twist: setsAndReps="20,20,20,20", level="10,12,14,16", weights="0,0,0,0"
@@ -55,13 +59,14 @@ Vita Twist: setsAndReps="20,20,20,20", level="10,12,14,16", weights="0,0,0,0"
 
 Consumers must read `level` when `dataStatType == 6`, or every set will appear to have an intensity of 0.
 
-**Do not clamp levels:** The API stores levels verbatim (well beyond level 10) and does not clamp.
-Artificially clamping levels client-side silently corrupts valid routines.
+**Observed behavior on level ranges:** In test and device-authored workouts, levels 10, 12, 14, and 16
+were stored and returned verbatim by the server without clamping. While `recommendedLevel` in the library
+is typically around 5, the API did not reject or clamp higher level values.
 
 ## 4. `weights` is Cable Tension on Dual-Cable Exercises, Not Resistance
 
-On a **single-cable** exercise, the top-level `weights` array matches the populated side array.
-On a **dual-cable** exercise, however, the top-level `weights` array is a derived force series
+On observed single-cable exercises, the top-level `weights` array matched the populated side array.
+On dual-cable exercises, however, the top-level `weights` array was observed to be a derived force series
 reflecting total cable tension (which spikes during acceleration):
 
 ```
@@ -96,7 +101,7 @@ across repetitions. Treat each series independently, scaled over its own length.
 
 ## 6. Unilateral Exercises: Sides Alternate by Parity
 
-For unilateral exercises (`isLeftRight == 1`), the Speediance API assigns sides by position index:
+On unilateral exercises (`isLeftRight == 1`), the Speediance API was observed to assign sides by position index:
 **even index = Left (1), odd index = Right (2)**, stored as `leftRight: "1,2,1,2"`.
 
 Prescribing different loads per side requires creating paired sets for each round:
@@ -104,17 +109,18 @@ two physical working sets become four list entries.
 
 ## 7. Account Units: No Server-Side Conversion Occurs
 
-The API stores and returns workout weights in the unit configured on the user's account
+In round-trip tests, the API stored and returned workout weights in the unit configured on the user's account
 (`unit: 1` = lbs, `unit: 0` = kg):
 - **On Read:** Raw numbers represent the account's native unit. `35` on an imperial account is 35 lbs.
 - **On Write:** Custom template weights are stored verbatim without automatic conversion.
   If an author pushes kilogram values to an account expecting pounds, the machine will load
   approximately 45% of the intended resistance.
 
-The sole exception is the exercise library catalog's `recommendedWeight`, which is always in kg.
+The sole exception is the exercise library catalog's `recommendedWeight`, which is always returned in kg.
 
 ## 8. Presets vs Custom Weights
 
+In observed template creation payloads:
 Template payloads accept RM-based presets (`presetId != -1`) or custom weights (`presetId: -1`).
 When using RM-based presets, the target percentage is stored in `counterweight2`, while `weights`
 holds 0.

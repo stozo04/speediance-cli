@@ -174,8 +174,9 @@ the same two fields:
 | `kind` | `info` | `detail` |
 |---|---|---|
 | `"program"` | `cttTrainingInfo` payload (incl. `completionRate`) | `cttTrainingInfoDetail` — per-exercise, per-rep arrays |
+| `"course"` | `courseTrainingInfo` payload (incl. `completionRate`) | `courseTrainingInfoDetail` — per-exercise, per-rep arrays for official courses |
 | `"free"` | `freeTraining` payload (totals: `totalCapacity`, `totalEnergy`, `totalDistance` for rowing/ski; `name` for guided sessions) | `freeTrainingDetail` — `[]` for a freestyle Free Lift, **populated** for a guided session (e.g. *Aerobic Rowing* → per-interval `finishedReps` with `distance`/`pace`/`spm` + per-stroke traces) |
-| `""` | `null` | `null` (no session found in either namespace) |
+| `""` | `null` | `null` (no session found in any namespace) |
 
 > `kind:"free"` is the *free namespace*, not "freestyle". It spans both a
 > freestyle **Free Lift** (no `info.name`, `detail: []`, aggregates only) and a

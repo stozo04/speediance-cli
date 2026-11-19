@@ -74,39 +74,50 @@ func (c *Client) fetchRecords(ctx context.Context, start, end time.Time) ([]work
 type DispatchMode int
 
 const (
-	// Auto probes the program namespace first, then falls back to free. It is the
+	// Auto probes the program namespace first, then course, then free. It is the
 	// default for `session <id>` when the session type is unknown.
 	Auto DispatchMode = iota
-	// FreeFirst probes free first, then program. Used when the list says the
-	// session is type 1, so the (rare) trainingId collision with a program of the
+	// FreeFirst probes free first, then course, then program. Used when the list
+	// says the session is type 1, so the (rare) trainingId collision with a program of the
 	// same id is sidestepped — the free session is found before program is queried.
 	FreeFirst
+	// CourseFirst probes course first, then program, then free. Used when the list
+	// says the session is type 2 or 6 (official courses).
+	CourseFirst
 	// ProgramOnly consults only the program namespace and never falls back; it
-	// backs the --program override for an id valid in both namespaces.
+	// backs the --program override for an id valid in multiple namespaces.
 	ProgramOnly
+	// CourseOnly consults only the course namespace and never falls back; it
+	// backs the --course override.
+	CourseOnly
 	// FreeOnly consults only the free namespace and never falls back; it backs the
-	// --free override for an id valid in both namespaces.
+	// --free override for an id valid in multiple namespaces.
 	FreeOnly
 )
 
 // modeForType picks a dispatch mode from the list's numeric session type. Type 5
-// is program-served, so probe program first; every other type (1 freestyle, 2/7
-// guided cardio/programs, and unknowns) is free-served, so probe free first —
-// efficient and collision-safe (a same-id program is never queried when the free
-// session has data). Either way the fallback still catches a misclassification.
+// is program-served (cttTrainingInfo); types 2 and 6 are official courses
+// (courseTrainingInfo); and other types (1 freestyle, 7 guided cardio, and
+// unknowns) are free-served (freeTraining). Either way the fallback still catches
+// a misclassification.
 func modeForType(sessionType int) DispatchMode {
-	if sessionType == 5 {
-		return Auto // program-first, free fallback
+	switch sessionType {
+	case 5:
+		return Auto // program-first, course/free fallback
+	case 2, 6:
+		return CourseFirst // course-first, program/free fallback
+	default:
+		return FreeFirst // free-first, course/program fallback
 	}
-	return FreeFirst // free-first, program fallback
 }
 
 // ResolveSession fetches one session's detail, autonomously selecting the right
-// Speediance namespace. Program detail lives at cttTrainingInfo[Detail]; free-lift
-// detail (incl. rowing/ski) lives at freeTraining[Detail]; and a trainingId can be
-// valid in BOTH namespaces as unrelated sessions, so the caller's mode disambiguates.
-// The result is the uniform, verbatim SessionDetail (info/detail carry whichever
-// namespace's raw payload answered; kind names it; both null when neither has data).
+// Speediance namespace. Program detail lives at cttTrainingInfo[Detail]; course
+// detail lives at courseTrainingInfo[Detail]; free-lift detail (incl. rowing/ski)
+// lives at freeTraining[Detail]; and a trainingId can be valid in multiple
+// namespaces as unrelated sessions, so the caller's mode disambiguates. The result
+// is the uniform, verbatim SessionDetail (info/detail carry whichever namespace's
+// raw payload answered; kind names it; both null when neither has data).
 func (c *Client) ResolveSession(ctx context.Context, trainingID int64, mode DispatchMode) (*workout.SessionDetail, error) {
 	id := strconv.FormatInt(trainingID, 10)
 	sd := &workout.SessionDetail{TrainingID: trainingID}
@@ -118,6 +129,17 @@ func (c *Client) ResolveSession(ctx context.Context, trainingID int64, mode Disp
 		}
 		if hasData(info) || hasData(detail) {
 			sd.Kind, sd.Info, sd.Detail = "program", info, detail
+			return true, nil
+		}
+		return false, nil
+	}
+	tryCourse := func() (bool, error) {
+		info, detail, err := c.courseDetail(ctx, id)
+		if err != nil {
+			return false, err
+		}
+		if hasData(info) || hasData(detail) {
+			sd.Kind, sd.Info, sd.Detail = "course", info, detail
 			return true, nil
 		}
 		return false, nil
@@ -138,12 +160,16 @@ func (c *Client) ResolveSession(ctx context.Context, trainingID int64, mode Disp
 	switch mode {
 	case ProgramOnly:
 		_, err = tryProgram()
+	case CourseOnly:
+		_, err = tryCourse()
 	case FreeOnly:
 		_, err = tryFree()
+	case CourseFirst:
+		err = firstOf(tryCourse, tryProgram, tryFree)
 	case FreeFirst:
-		err = firstThen(tryFree, tryProgram)
+		err = firstOf(tryFree, tryCourse, tryProgram)
 	default: // Auto / ProgramFirst
-		err = firstThen(tryProgram, tryFree)
+		err = firstOf(tryProgram, tryCourse, tryFree)
 	}
 	if err != nil {
 		return nil, err
@@ -151,14 +177,15 @@ func (c *Client) ResolveSession(ctx context.Context, trainingID int64, mode Disp
 	return sd, nil
 }
 
-// firstThen runs primary; if it found nothing (and didn't error), runs fallback.
-func firstThen(primary, fallback func() (bool, error)) error {
-	found, err := primary()
-	if err != nil || found {
-		return err
+// firstOf runs probes in order until one finds data or returns an error.
+func firstOf(probes ...func() (bool, error)) error {
+	for _, p := range probes {
+		found, err := p()
+		if err != nil || found {
+			return err
+		}
 	}
-	_, err = fallback()
-	return err
+	return nil
 }
 
 // programDetail fetches the program (Coach/template) namespace payloads verbatim.
@@ -166,6 +193,13 @@ func (c *Client) programDetail(ctx context.Context, id string) (info, detail jso
 	return c.pair(ctx,
 		"/app/trainingInfo/cttTrainingInfo/"+id,
 		"/app/trainingInfo/cttTrainingInfoDetail/"+id)
+}
+
+// courseDetail fetches the official course namespace payloads verbatim.
+func (c *Client) courseDetail(ctx context.Context, id string) (info, detail json.RawMessage, err error) {
+	return c.pair(ctx,
+		"/app/trainingInfo/courseTrainingInfo/"+id,
+		"/app/trainingInfo/courseTrainingInfoDetail/"+id)
 }
 
 // freeDetail fetches the free-lift (freestyle/rowing/ski) namespace payloads verbatim.

@@ -105,11 +105,11 @@ func (r rawRecord) toWorkout() Workout {
 }
 
 // KindForType maps the raw numeric session `type` to the stable `kind` label the
-// CLI emits ("program" | "free" | ""). Observed across a year of real sessions:
-// type 5 is the program/Coach namespace (cttTrainingInfo[Detail]); every other
-// positive type — 1 (freestyle Free Lift), 2 (guided programs like
-// "Ultimate Sculpt & Burn"), 7 (guided cardio like "Aerobic Rowing") — is served
-// by the free namespace (freeTraining[Detail]). A non-positive/absent type yields
+// CLI emits ("program" | "course" | "free" | ""). Observed across real sessions:
+// type 5 is the program/Coach namespace (cttTrainingInfo[Detail]); types 2 and 6
+// are official guided courses (courseTrainingInfo[Detail]); other positive types
+// (1 freestyle Free Lift, 7 guided cardio like "Aerobic Rowing") are served by
+// the free namespace (freeTraining[Detail]). A non-positive/absent type yields
 // "". This is the digest hint used by `workouts`; `session`/`today` confirm the
 // kind by *which endpoint actually answered*, so they stay correct even if a
 // future type breaks this mapping.
@@ -117,6 +117,8 @@ func KindForType(sessionType int) string {
 	switch {
 	case sessionType == 5:
 		return "program"
+	case sessionType == 2 || sessionType == 6:
+		return "course"
 	case sessionType >= 1:
 		return "free"
 	default:
@@ -179,9 +181,10 @@ func (w Workout) Summary() Summary {
 // resolves which kind of session this is and emits a uniform shape so a
 // type-agnostic agent always reads the same two payload fields:
 //
-//	kind="program" → info=cttTrainingInfo data,  detail=cttTrainingInfoDetail data (per-rep arrays)
-//	kind="free"    → info=freeTraining data,      detail=freeTrainingDetail data (usually [])
-//	kind=""        → neither namespace had data;  info and detail are null
+//	kind="program" → info=cttTrainingInfo data,    detail=cttTrainingInfoDetail data (per-rep arrays)
+//	kind="course"  → info=courseTrainingInfo data, detail=courseTrainingInfoDetail data (per-rep arrays)
+//	kind="free"    → info=freeTraining data,        detail=freeTrainingDetail data (usually [])
+//	kind=""        → none of the namespaces had data; info and detail are null
 //
 // Info and Detail are the *verbatim* Speediance payloads (transport envelope
 // unwrapped, payload untouched) so every field — modeled or not, now or after a

@@ -67,22 +67,24 @@ speediance-cli today --date 2026-06-17 --json   # today | yesterday | YYYY-MM-DD
 # recent completed sessions (a digest, for picking); each row carries `kind`
 speediance-cli workouts --days 7 --json
 
-# full, verbatim detail for one session; auto-detects program/free/rowing
+# full, verbatim detail for one session; auto-detects program/course/free/rowing
 speediance-cli session <training_id> --json
 ```
 
 **The tool auto-detects the session type — the agent stays dumb.** When the user asks
 for their Speediance data, or confirms they want it fetched, call `today`. A passing
 mention of exercising is not a request to read their account: ask first. `today` finds the day's session(s) and returns
-each fully resolved, without you knowing whether it was a program, free weights, or
+each fully resolved, without you knowing whether it was a program, an official course, free weights, or
 rowing. `session <id>` does the same for one id (probes the program namespace, then
-free).
+course, then free).
 
 Output is a uniform **`{training_id, kind, info, detail}`** (`today` returns an
-array of these). `kind` is `"program"`, `"free"`, or `""`:
+array of these). `kind` is `"program"`, `"course"`, `"free"`, or `""`:
 
 - `kind:"program"` → `info` = `cttTrainingInfo` (incl. `completionRate`); `detail` =
   per-exercise, per-rep arrays.
+- `kind:"course"` → official guided courses (types 2/6): `info` = `courseTrainingInfo`
+  (incl. `completionRate`); `detail` = per-exercise, per-rep arrays.
 - `kind:"free"` → the free *namespace* (not "freestyle"): `info` = `freeTraining`
   totals (`totalCapacity`, `totalEnergy`, `totalDistance` for rowing/ski; `name` for
   guided). `detail` is `[]` for a freestyle Free Lift, but **populated** for a

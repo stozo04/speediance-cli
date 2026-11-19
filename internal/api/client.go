@@ -132,7 +132,7 @@ func (c *Client) setHeaders(req *http.Request) {
 		"Timestamp":       {ts},
 		"Utc_offset":      {"+0000"},
 		"Timezone":        {"GMT"},
-		"Versioncode":     {"40304"},
+		"Versioncode":     {appVersionCode},
 		"Accept-Language": {"en"},
 		"App_type":        {"SOFTWARE"},
 		"Mobiledevices":   {mobileDevices},

@@ -118,6 +118,9 @@ func modeForType(sessionType int) DispatchMode {
 // namespaces as unrelated sessions, so the caller's mode disambiguates. The result
 // is the uniform, verbatim SessionDetail (info/detail carry whichever namespace's
 // raw payload answered; kind names it; both null when neither has data).
+//
+// An unresolved session makes up to 6 HTTP requests (program info+detail, course
+// info+detail, free info+detail) to probe namespaces in order.
 func (c *Client) ResolveSession(ctx context.Context, trainingID int64, mode DispatchMode) (*workout.SessionDetail, error) {
 	id := strconv.FormatInt(trainingID, 10)
 	sd := &workout.SessionDetail{TrainingID: trainingID}

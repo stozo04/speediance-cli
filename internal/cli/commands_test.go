@@ -699,6 +699,33 @@ func TestTodayResolvesEverySessionType(t *testing.T) {
 	}
 }
 
+// TestSessionGuidedRowingHasDetail: a guided rowing session (type 7) is delivered
+// with kind=free AND a populated detail (per-interval rows) — proving kind=free
+// is not synonymous with "empty detail" (that's only freestyle Free Lifts).
+func TestSessionGuidedRowingHasDetail(t *testing.T) {
+	srv := dispatchServer(t)
+	defer srv.Close()
+	out, _, err := runCLI(t, srv.URL, "session", "400", "--json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var doc sessionDoc
+	if err := json.Unmarshal([]byte(out), &doc); err != nil {
+		t.Fatalf("bad json: %v\n%s", err, out)
+	}
+	if doc.Kind != "free" {
+		t.Errorf("kind = %q, want free", doc.Kind)
+	}
+	if !strings.Contains(string(doc.Info), `"name": "Aerobic Rowing"`) {
+		t.Errorf("info.name (guided session) missing:\n%s", doc.Info)
+	}
+	for _, key := range []string{`"finishedReps"`, `"spm"`, `"pace"`, `"leftMinRopeLengths"`} {
+		if !strings.Contains(string(doc.Detail), key) {
+			t.Errorf("guided-rowing detail missing verbatim key %s:\n%s", key, doc.Detail)
+		}
+	}
+}
+
 // TestSessionAutoDetectsCourse asserts that given only an id for an official course
 // session (type 2/6), the tool probes program, finds nothing, checks course, and
 // returns kind=course with the courseTrainingInfo[Detail] payloads.

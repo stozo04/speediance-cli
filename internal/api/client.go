@@ -50,6 +50,11 @@ type Client struct {
 	now    func() time.Time // injectable clock for the Timestamp header (tests).
 }
 
+// Logger returns the client's structured logger.
+func (c *Client) Logger() *slog.Logger {
+	return c.logger
+}
+
 // Config constructs a Client. Token/UserID may be empty (a fresh login happens
 // lazily on first use). BaseURL overrides region resolution for tests.
 type Config struct {

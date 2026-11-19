@@ -572,3 +572,27 @@ func TestNoUserCacheDirDisablesTokenCacheInsteadOfUsingWorkingDir(t *testing.T) 
 		t.Errorf("token cache = %q, want caching disabled (\"\") rather than a working-directory file", cfg.TokenCachePath)
 	}
 }
+
+func TestMalformedDeviceTypeWarns(t *testing.T) {
+	t.Chdir(t.TempDir())
+	clearEnv(t)
+	t.Setenv(EnvDeviceType, "not-a-number")
+
+	cfg, err := Load(Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.DeviceType != DefaultDeviceType {
+		t.Errorf("device type = %d, want default %d", cfg.DeviceType, DefaultDeviceType)
+	}
+	found := false
+	for _, w := range cfg.Warnings {
+		if strings.Contains(w, "invalid SPEEDIANCE_DEVICE_TYPE") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("expected warning about invalid SPEEDIANCE_DEVICE_TYPE, got warnings: %q", cfg.Warnings)
+	}
+}

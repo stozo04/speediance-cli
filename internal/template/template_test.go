@@ -163,3 +163,48 @@ func TestLoadPlanRequiresNameAndExercises(t *testing.T) {
 		t.Error("expected error for plan missing 'exercises'")
 	}
 }
+
+func TestFetchLibraryDecodeErrors(t *testing.T) {
+	cases := []struct {
+		name string
+		path string
+		body string
+	}{
+		{
+			name: "malformed tabs response",
+			path: "/app/actionLibraryTab/list",
+			body: `{"code":0,"data":"not-an-array"}`,
+		},
+		{
+			name: "malformed groups response",
+			path: "/app/actionLibraryGroup/trainingPartGroup",
+			body: `{"code":0,"data":"not-an-array"}`,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				if strings.Contains(r.URL.Path, tc.path) {
+					_, _ = w.Write([]byte(tc.body))
+					return
+				}
+				if strings.Contains(r.URL.Path, "/app/actionLibraryTab/list") {
+					_, _ = w.Write([]byte(`{"code":0,"data":[{"id":1,"name":"Chest","isCustom":false}]}`))
+					return
+				}
+				_, _ = w.Write([]byte(`{"code":0,"data":[]}`))
+			}))
+			defer srv.Close()
+
+			client := newTestClient(t, srv.URL)
+			_, err := template.FetchLibrary(context.Background(), client, 1)
+			if err == nil {
+				t.Fatalf("%s: expected decode error, got nil", tc.name)
+			}
+			if !strings.Contains(err.Error(), "decode failed") {
+				t.Errorf("%s: unexpected error message: %v", tc.name, err)
+			}
+		})
+	}
+}

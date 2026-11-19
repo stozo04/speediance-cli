@@ -65,6 +65,7 @@ speediance-cli session <training_id> --json  # full, verbatim detail for one ses
 speediance-cli library --search "row"        # exercise catalog (ids/names/muscles)
 speediance-cli push plan.json --dry-run      # build a program (preview)
 speediance-cli push plan.json                # create it on your account
+speediance-cli push plan.json --date today   # create and reserve on the machine calendar
 ```
 
 The reader commands emit JSON and own no data layout — pipe `workouts`/`session --json`

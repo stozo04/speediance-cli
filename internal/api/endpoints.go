@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"strconv"
 	"strings"
 	"time"
@@ -211,4 +212,22 @@ func rawData(d json.RawMessage) json.RawMessage {
 func hasData(d json.RawMessage) bool {
 	s := strings.TrimSpace(string(d))
 	return s != "" && s != "null" && s != "[]" && s != "{}"
+}
+
+// ReserveTemplate schedules a custom training template onto the user's Speediance machine calendar.
+func (c *Client) ReserveTemplate(ctx context.Context, code string, date string, deviceType int) error {
+	payload := map[string]any{
+		"status":       1,
+		"deviceType":   deviceType,
+		"thatDay":      date,
+		"templateCode": code,
+	}
+	env, err := c.PostJSON(ctx, "/app/templateReservation", payload)
+	if err != nil {
+		return err
+	}
+	if env.Code != 0 {
+		return fmt.Errorf("schedule template failed: %s (code %d)", env.Message, env.Code)
+	}
+	return nil
 }

@@ -115,8 +115,9 @@ package doesn't include it; run the command above to get the catalog locally.
 
 ```bash
 # 2) write a plan JSON (you, the agent, author this), then:
-speediance-cli push plan.json --dry-run   # preview payload, no network write
-speediance-cli push plan.json             # create it on the account
+speediance-cli push plan.json --dry-run          # preview payload, no network write
+speediance-cli push plan.json                    # create it on the account
+speediance-cli push plan.json --date 2026-11-25  # create and schedule on machine calendar (today|yesterday|YYYY-MM-DD)
 ```
 
 ### Plan JSON

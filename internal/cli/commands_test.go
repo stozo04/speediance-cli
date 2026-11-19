@@ -68,7 +68,9 @@ func fakeAPI(t *testing.T) *httptest.Server {
 			}
 			_, _ = w.Write([]byte(`{"code":0,"data":{"isLeftRight":` + strconv.Itoa(lr) + `}}`))
 		case p == "/app/v2/customTrainingTemplate":
-			_, _ = w.Write([]byte(`{"code":0,"data":{"id":999,"name":"created"}}`))
+			_, _ = w.Write([]byte(`{"code":0,"data":"tpl_code_123"}`))
+		case p == "/app/templateReservation":
+			_, _ = w.Write([]byte(`{"code":0,"data":true}`))
 		default:
 			t.Logf("unhandled path: %s?%s", p, q)
 			_, _ = w.Write([]byte(`{"code":0,"data":[]}`))
@@ -264,6 +266,37 @@ func TestPushDryRunGoldenParity(t *testing.T) {
 	}
 	if out != string(want) {
 		t.Errorf("push --dry-run --json not byte-identical to golden.\n--- got ---\n%s\n--- want ---\n%s", out, want)
+	}
+}
+
+func TestPushScheduleDate(t *testing.T) {
+	srv := fakeAPI(t)
+	defer srv.Close()
+
+	planAbs, err := filepath.Abs(filepath.Join("..", "..", "testdata", "plans", "example-push.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	out, errb, err := runCLI(t, srv.URL, "push", planAbs, "--date", "2026-11-25", "--json")
+	if err != nil {
+		t.Fatalf("push with --date failed: %v\nstderr: %s", err, errb)
+	}
+	var res map[string]any
+	if err := json.Unmarshal([]byte(out), &res); err != nil {
+		t.Fatalf("bad json output: %v\n%s", err, out)
+	}
+	if res["template_code"] != "tpl_code_123" || res["scheduled_date"] != "2026-11-25" || res["scheduled"] != true {
+		t.Errorf("unexpected push response: %+v", res)
+	}
+
+	// Also check human display output
+	hout, _, err := runCLI(t, srv.URL, "push", planAbs, "--date", "2026-11-25")
+	if err != nil {
+		t.Fatalf("push human failed: %v", err)
+	}
+	if !strings.Contains(hout, "scheduled for 2026-11-25") {
+		t.Errorf("unexpected human output: %s", hout)
 	}
 }
 

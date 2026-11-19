@@ -209,7 +209,8 @@ def main(argv):
             if text is None:
                 shutil.copyfile(src_tree[rel], dst)
             else:
-                dst.write_text(text.replace(SELF_TOKEN, f".{h}"), encoding="utf-8", newline="")
+                with dst.open("w", encoding="utf-8", newline="") as f:
+                    f.write(text.replace(SELF_TOKEN, f".{h}"))
             copied += 1
             print(f"  wrote   .{h}/{SUBTREE}/{rel}")
     print(f"\nsynced from .{args.source}: {copied} copied, {removed} removed — `git add` the result")

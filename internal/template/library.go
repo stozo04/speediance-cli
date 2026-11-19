@@ -28,11 +28,10 @@ func FetchLibrary(ctx context.Context, client *api.Client, deviceType int) ([]Ex
 		Name     string          `json:"name"`
 		IsCustom json.RawMessage `json:"isCustom"`
 	}
-	if err := json.Unmarshal(tabsEnv.Data, &tabs); err != nil {
-		if client != nil && client.Logger() != nil {
-			client.Logger().Warn("library tabs decode failed", "err", err)
+	if len(tabsEnv.Data) > 0 {
+		if err := json.Unmarshal(tabsEnv.Data, &tabs); err != nil {
+			return nil, fmt.Errorf("library tabs decode failed: %w", err)
 		}
-		return nil, fmt.Errorf("library tabs decode failed: %w", err)
 	}
 
 	// Ordered set of actions, deduped by id (first tab/group wins).
@@ -54,11 +53,10 @@ func FetchLibrary(ctx context.Context, client *api.Client, deviceType int) ([]Ex
 				Title string       `json:"title"`
 			} `json:"actionLibraryGroupList"`
 		}
-		if err := json.Unmarshal(grpEnv.Data, &groups); err != nil {
-			if client != nil && client.Logger() != nil {
-				client.Logger().Warn("library groups decode failed", "tab", t.ID.String(), "err", err)
+		if len(grpEnv.Data) > 0 {
+			if err := json.Unmarshal(grpEnv.Data, &groups); err != nil {
+				return nil, fmt.Errorf("library groups decode failed for tab %s: %w", t.ID.String(), err)
 			}
-			return nil, fmt.Errorf("library groups decode failed for tab %s: %w", t.ID.String(), err)
 		}
 
 		for _, mg := range groups {
@@ -98,11 +96,11 @@ func FetchLibrary(ctx context.Context, client *api.Client, deviceType int) ([]Ex
 			ID                  *json.Number `json:"id"`
 			MainMuscleGroupName string       `json:"mainMuscleGroupName"`
 		}
-		if err := json.Unmarshal(detEnv.Data, &details); err != nil {
-			if client != nil && client.Logger() != nil {
+		if len(detEnv.Data) > 0 {
+			if err := json.Unmarshal(detEnv.Data, &details); err != nil {
 				client.Logger().Warn("library muscle details decode failed", "err", err)
+				continue
 			}
-			continue
 		}
 		for _, d := range details {
 			if d.ID == nil {

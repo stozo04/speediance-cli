@@ -208,3 +208,54 @@ func TestFetchLibraryDecodeErrors(t *testing.T) {
 		})
 	}
 }
+
+func TestFetchLibraryEmptyData(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		// Envelope with empty data
+		_, _ = w.Write([]byte(`{"code":0}`))
+	}))
+	defer srv.Close()
+
+	client := newTestClient(t, srv.URL)
+	items, err := template.FetchLibrary(context.Background(), client, 1)
+	if err != nil {
+		t.Fatalf("expected nil error on empty data, got: %v", err)
+	}
+	if len(items) != 0 {
+		t.Errorf("expected 0 items, got %d", len(items))
+	}
+}
+
+func TestFetchLibraryMuscleDetailDecodeFailureWarnsAndContinues(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case strings.Contains(r.URL.Path, "/app/actionLibraryTab/list"):
+			_, _ = w.Write([]byte(`{"code":0,"data":[{"id":1,"name":"Chest","isCustom":false}]}`))
+		case strings.Contains(r.URL.Path, "/app/actionLibraryGroup/trainingPartGroup"):
+			_, _ = w.Write([]byte(`{"code":0,"data":[{"actionLibraryGroupList":[{"id":100,"title":"Pushup"}]}]}`))
+		case strings.Contains(r.URL.Path, "/app/actionLibraryGroup/list"):
+			// Malformed muscle detail response
+			_, _ = w.Write([]byte(`{"code":0,"data":"not-an-array"}`))
+		default:
+			_, _ = w.Write([]byte(`{"code":0,"data":[]}`))
+		}
+	}))
+	defer srv.Close()
+
+	client := newTestClient(t, srv.URL)
+	items, err := template.FetchLibrary(context.Background(), client, 1)
+	if err != nil {
+		t.Fatalf("FetchLibrary failed: %v", err)
+	}
+	if len(items) != 1 {
+		t.Fatalf("expected 1 exercise, got %d", len(items))
+	}
+	if items[0].Name != "Pushup" {
+		t.Errorf("exercise name = %q, want Pushup", items[0].Name)
+	}
+	if items[0].Muscle != "" {
+		t.Errorf("muscle = %q, want empty string when detail decode fails", items[0].Muscle)
+	}
+}

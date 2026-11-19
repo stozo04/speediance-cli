@@ -31,6 +31,9 @@ func newPushCmd(app *App) *cobra.Command {
 
 			var targetDate string
 			if date != "" {
+				if strings.ToLower(date) == "yesterday" {
+					return withCode(ExitUsage, fmt.Errorf("cannot schedule a workout for yesterday"))
+				}
 				day, err := parseDay(date, time.Now())
 				if err != nil {
 					return withCode(ExitUsage, err)
@@ -58,6 +61,12 @@ func newPushCmd(app *App) *cobra.Command {
 				}
 				app.saveToken(cfg, client)
 				if asJSON {
+					if targetDate != "" {
+						return writeJSON(stdout, map[string]any{
+							"payload":        payload,
+							"scheduled_date": targetDate,
+						})
+					}
 					return writeJSON(stdout, payload)
 				}
 				fprintf(stdout, "[dry-run] totalCapacity=%s; not sent.\n",
@@ -84,7 +93,10 @@ func newPushCmd(app *App) *cobra.Command {
 				templateCode = strings.Trim(string(data), `"`)
 			}
 
-			if targetDate != "" && templateCode != "" {
+			if targetDate != "" {
+				if templateCode == "" {
+					return fmt.Errorf("template '%s' was created but server returned no template code for scheduling", plan.Name)
+				}
 				if err := client.ReserveTemplate(cmd.Context(), templateCode, targetDate, cfg.DeviceType); err != nil {
 					return fmt.Errorf("created template '%s' (code %s) but scheduling for %s failed: %w", plan.Name, templateCode, targetDate, err)
 				}

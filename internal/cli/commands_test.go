@@ -298,6 +298,24 @@ func TestPushScheduleDate(t *testing.T) {
 	if !strings.Contains(hout, "scheduled for 2026-11-25") {
 		t.Errorf("unexpected human output: %s", hout)
 	}
+
+	// Disallow yesterday
+	if _, _, err := runCLI(t, srv.URL, "push", planAbs, "--date", "yesterday"); err == nil {
+		t.Errorf("expected error for --date yesterday, got nil")
+	}
+
+	// Dry run with date shows scheduled_date in JSON
+	dryOut, _, err := runCLI(t, srv.URL, "push", planAbs, "--dry-run", "--date", "2026-11-25", "--json")
+	if err != nil {
+		t.Fatalf("dry run failed: %v", err)
+	}
+	var dryRes map[string]any
+	if err := json.Unmarshal([]byte(dryOut), &dryRes); err != nil {
+		t.Fatalf("bad dry-run json: %v", err)
+	}
+	if dryRes["scheduled_date"] != "2026-11-25" {
+		t.Errorf("expected scheduled_date in dry run, got: %+v", dryRes)
+	}
 }
 
 func TestAuthErrorExitsTwo(t *testing.T) {

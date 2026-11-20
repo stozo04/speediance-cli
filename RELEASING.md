@@ -204,7 +204,8 @@ end up with two different "v1.0.1"s, which is the thing versioning exists to pre
 - **Scanning a branch without merging:** run **"Deploy to ClawHub (from branch)"** on the branch
   with `target=scan-copy`. It publishes to `speediance-scan-<run id>-<attempt>`, waits for the scan,
   puts the verdict in the run summary and the full report in the `clawhub-scan-report` artifact,
-  then deletes the copy (it keeps the copy if the report could not be saved). `target=live`
+  then deletes the copy. If the report could not be saved it keeps the copy until the next weekly
+  sweep, so download the report from ClawHub before then. `target=live`
   republishes the real `speediance` listing from that branch. The weekly **"Sweep ClawHub scan
   copies"** workflow deletes any copy a finished run left behind. Both use
   `scripts/clawhub-scan-copies.sh`, which refuses to delete anything outside the `speediance-scan-`

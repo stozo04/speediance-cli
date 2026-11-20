@@ -206,7 +206,10 @@ end up with two different "v1.0.1"s, which is the thing versioning exists to pre
   puts the verdict in the run summary and the full report in the `clawhub-scan-report` artifact,
   then deletes the copy. If the report could not be saved it keeps the copy until the next weekly
   sweep, so download the report from ClawHub before then. `target=live`
-  republishes the real `speediance` listing from that branch. The weekly **"Sweep ClawHub scan
+  republishes the real `speediance` listing from that branch. Every live publish (a merge to
+  `main` or a `target=live` branch run) waits in one `clawhub-publish-live` queue (`queue: max`,
+  first in, first out), so none cancels or replaces another and a queued main publish is never
+  dropped. The weekly **"Sweep ClawHub scan
   copies"** workflow deletes any copy a finished run left behind. Both use
   `scripts/clawhub-scan-copies.sh`, which refuses to delete anything outside the `speediance-scan-`
   prefix. Never publish scan tests by hand to other scratch slugs: nothing cleans those up.

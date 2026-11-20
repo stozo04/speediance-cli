@@ -102,7 +102,7 @@ Speediance's fields aren't always self-consistent, so derive what you need from 
 values (e.g. a rowing split = `distance / time`, not the per-interval `pace` field,
 which is instantaneous) rather than trusting one field. A `trainingId` can mean
 different sessions across namespaces; auto-detect prefers program, and
-`--free`/`--program` force a namespace when an id is ambiguous.
+`--free`/`--program`/`--course` force a namespace when an id is ambiguous.
 
 ## 4. Create a workout (so it appears on the machine)
 
@@ -188,7 +188,7 @@ per-set detail to store.
 | `login` | authenticate, cache token | — |
 | `workouts --days N` | list recent sessions | yes |
 | `today [--date D]` | every session on a day, auto-resolved to type-correct detail | yes |
-| `session <id> [--free\|--program]` | full, verbatim detail for one session; auto-detects type | yes |
+| `session <id> [--free\|--program\|--course]` | full, verbatim detail for one session; auto-detects type | yes |
 | `library` | dump exercise catalog to `library.json` | yes |
 | `push <plan.json>` | create a program (`--dry-run` to preview, `--date D` to reserve it on the calendar) | yes |
 | `config show\|set\|path` | manage `config.json` | yes (`show`) |

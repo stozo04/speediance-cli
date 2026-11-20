@@ -84,7 +84,7 @@ every merge — merge freely, let `main` accumulate, then release a meaningful u
 |---|---|---|
 | `git push origin vX.Y.Z` (a tag) | **Release** (`release.yml` → GoReleaser) | GitHub Release w/ 6 binaries + `checksums.txt` |
 | Push / merge to `main` | **CI** (`ci.yml`) | build & test + lint (no release!) |
-| Push / merge to `main` **that changes `SKILL.md`** | **Publish to ClawHub** | Skill republished to ClawHub |
+| Push / merge to `main` **that changes a shipped file** (`SKILL.md`, `SECURITY.md`, `config.example.json`, `docs/MACHINE_CONTRACT.md`), `.clawhubignore` or `.gitignore` | **Publish to ClawHub** | Skill republished to ClawHub |
 | Run **Deploy to ClawHub (from branch)** by hand | `deploy-clawhub-from-branch.yml` | Branch scanned on a throwaway copy, then deleted |
 | Monday 06:17 UTC | **Sweep ClawHub scan copies** | Leftover `speediance-scan-*` copies deleted |
 | Open / update a PR | **CI** | build & test + lint |

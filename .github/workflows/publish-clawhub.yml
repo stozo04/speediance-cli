@@ -5,6 +5,11 @@ on:
     branches: [main]
     paths:
       - SKILL.md
+      - SECURITY.md
+      - config.example.json
+      - docs/MACHINE_CONTRACT.md
+      - .clawhubignore
+      - .gitignore
   workflow_dispatch:
 
 permissions:

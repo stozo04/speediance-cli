@@ -250,9 +250,9 @@ Notes for consumers:
 - **No flag unlocks data** — the endpoints return it, so the CLI returns it. There
   is no `--telemetry`.
 
-> A `trainingId` can identify *different* sessions in the program vs. free
-> namespaces. Auto-detection prefers the program match; pass `--program` or
-> `--free` to `session` to force a namespace when an id is ambiguous.
+> A `trainingId` can identify *different* sessions in the program, course and free
+> namespaces. Auto-detection prefers the program match; pass `--program`,
+> `--course` or `--free` to `session` to force a namespace when an id is ambiguous.
 
 ### Browse the exercise catalog
 
@@ -330,7 +330,7 @@ layout.
 | `login` | Authenticate and cache a session token | — |
 | `workouts [--days N]` | List recent completed sessions | ✓ |
 | `today [--date D]` | Every session on a day, auto-resolved to type-correct detail (the one-shot entry point) | ✓ |
-| `session <training_id> [--free\|--program]` | Full, verbatim detail for one session; auto-detects program/free/rowing | ✓ |
+| `session <training_id> [--free\|--program\|--course]` | Full, verbatim detail for one session; auto-detects program/course/free/rowing | ✓ |
 | `library [--search X] [--out FILE]` | Dump or search exercise catalog | ✓ |
 | `push <plan.json> [--dry-run] [--date D]` | Create a training program on the account, optionally reserving it on the calendar | ✓ |
 | `config show\|set\|path` | Manage `config.json` | ✓ (`show`) |

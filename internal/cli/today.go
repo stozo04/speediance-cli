@@ -22,7 +22,7 @@ func newTodayCmd(app *App) *cobra.Command {
 	)
 	cmd := &cobra.Command{
 		Use:   "today",
-		Short: "Full detail for every session on a day (auto-detects program/free/rowing)",
+		Short: "Full detail for every session on a day (auto-detects program/course/free/rowing)",
 		Args:  cobra.NoArgs,
 		RunE: runE(func(cmd *cobra.Command, _ []string) error {
 			day, err := parseDay(date, time.Now())

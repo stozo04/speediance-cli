@@ -60,7 +60,7 @@ speediance-cli login   # verifies the credentials and caches a session token
 ## Commands
 
 ```bash
-speediance-cli today --json                  # every session today, auto-resolved (program/free/rowing)
+speediance-cli today --json                  # every session today, auto-resolved (program/course/free/rowing)
 speediance-cli workouts --days 7 --json      # recent sessions (digest, each with a kind)
 speediance-cli session <training_id> --json  # full, verbatim detail for one session (auto-detects type)
 speediance-cli library --search "row"        # exercise catalog (ids/names/muscles)

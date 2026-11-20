@@ -12,17 +12,17 @@ import (
 	"github.com/stozo04/speediance-cli/v2/internal/workout"
 )
 
-// newSessionCmd implements `session <training_id> [--json] [--free|--program]`
+// newSessionCmd implements `session <training_id> [--json] [--free|--program|--course]`
 // (GOAL.md §9.3). The session is a faithful, complete passthrough AND autonomous:
 // given only an id it figures out what the session was — a program/Coach session,
-// a free weight lift, or a rowing/ski free session — by probing the program
-// namespace first and falling back to the free namespace, then emits the verbatim
+// an official course, a free weight lift, or a rowing/ski free session — by
+// probing the program, course and free namespaces in turn, then emits the verbatim
 // payloads under a uniform {training_id, kind, info, detail} shape. The agent does
-// not need to know the type. --free / --program are strict overrides for the rare
-// case where a trainingId is valid in BOTH namespaces (it identifies different
+// not need to know the type. --free / --program / --course are strict overrides for the rare
+// case where a trainingId is valid in multiple namespaces (it identifies different
 // sessions in each), letting the caller force the intended one.
 func newSessionCmd(app *App) *cobra.Command {
-	var asJSON, free, program bool
+	var asJSON, free, program, course bool
 	cmd := &cobra.Command{
 		Use:   "session <training_id>",
 		Short: "Full, verbatim Speediance detail for one session (any type)",
@@ -32,7 +32,7 @@ func newSessionCmd(app *App) *cobra.Command {
 			if err != nil {
 				return withCode(ExitUsage, err)
 			}
-			mode, err := dispatchMode(free, program)
+			mode, err := dispatchMode(free, program, course)
 			if err != nil {
 				return err
 			}
@@ -60,40 +60,55 @@ func newSessionCmd(app *App) *cobra.Command {
 		"force the free-lift namespace (freestyle/rowing); overrides auto-detection")
 	cmd.Flags().BoolVar(&program, "program", false,
 		"force the program/Coach namespace; overrides auto-detection")
+	cmd.Flags().BoolVar(&course, "course", false,
+		"force the official course namespace; overrides auto-detection")
 	return cmd
 }
 
-// dispatchMode maps the --free/--program flags to a resolver mode. The two flags
-// are mutually exclusive; neither means autonomous (program-first, free-fallback).
-func dispatchMode(free, program bool) (api.DispatchMode, error) {
-	switch {
-	case free && program:
-		return api.Auto, withCode(ExitUsage,
-			fmt.Errorf("--free and --program are mutually exclusive"))
-	case free:
-		return api.FreeOnly, nil
-	case program:
-		return api.ProgramOnly, nil
-	default:
-		return api.Auto, nil
+// dispatchMode maps the --free/--program/--course flags to a resolver mode. The flags
+// are mutually exclusive; none specified means autonomous (program/course/free fallback).
+func dispatchMode(free, program, course bool) (api.DispatchMode, error) {
+	count := 0
+	if free {
+		count++
 	}
+	if program {
+		count++
+	}
+	if course {
+		count++
+	}
+	if count > 1 {
+		return api.Auto, withCode(ExitUsage,
+			fmt.Errorf("--free, --program, and --course are mutually exclusive"))
+	}
+	if free {
+		return api.FreeOnly, nil
+	}
+	if program {
+		return api.ProgramOnly, nil
+	}
+	if course {
+		return api.CourseOnly, nil
+	}
+	return api.Auto, nil
 }
 
 // humanSession renders the one-line human view for a resolved session. The full,
 // authoritative data is in --json; this is a display-only convenience.
 func humanSession(sd *workout.SessionDetail) string {
 	switch sd.Kind {
-	case "program":
+	case "program", "course":
 		names := exerciseNames(sd.Detail)
 		if len(names) == 0 {
-			return fmt.Sprintf("training %d: program session, no per-set detail", sd.TrainingID)
+			return fmt.Sprintf("training %d: %s session, no per-set detail", sd.TrainingID, sd.Kind)
 		}
-		return fmt.Sprintf("training %d (program): %s", sd.TrainingID, strings.Join(names, ", "))
+		return fmt.Sprintf("training %d (%s): %s", sd.TrainingID, sd.Kind, strings.Join(names, ", "))
 	case "free":
 		return fmt.Sprintf("training %d (free): %s", sd.TrainingID, freeSummary(sd.Info))
 	default:
 		return fmt.Sprintf("training %d: no detail found "+
-			"(freestyle 'Free Lift' sessions can return none; try --free/--program if the id is ambiguous)",
+			"(freestyle 'Free Lift' sessions can return none; try --free/--program/--course if the id is ambiguous)",
 			sd.TrainingID)
 	}
 }

@@ -117,9 +117,16 @@ package doesn't include it; run the command above to get the catalog locally.
 
 ```bash
 # 2) write a plan JSON (you, the agent, author this), then:
-speediance-cli push plan.json --dry-run   # preview payload, no network write
-speediance-cli push plan.json             # create it on the account
+speediance-cli push plan.json --dry-run          # preview payload, no network write
+speediance-cli push plan.json                    # create it on the account
+speediance-cli push plan.json --date 2026-11-25  # create it and reserve it on the calendar (today | YYYY-MM-DD)
 ```
+
+`push --json` prints the server's create response (the template code as a JSON string).
+With `--date` it prints `{"template_code": "…", "scheduled_date": "YYYY-MM-DD"}` instead,
+and `--dry-run --date` prints `{"payload": …, "scheduled_date": "YYYY-MM-DD"}`. If the
+reservation fails (exit 3), `--date --json` still prints the `template_code` with
+`scheduled_date: null`. `--date` only accepts today or later.
 
 ### Plan JSON
 
@@ -153,7 +160,9 @@ per-set detail to store.
 
 - **stdout is parseable** with `--json`; human hints, warnings, and logs go to **stderr**.
   They are never interleaved, so piping stdout into a parser is safe.
-- **Exit codes:** `0` success, `2` auth failure, non-zero for other errors. Check them.
+- **Exit codes:** `0` success, `2` auth failure, `3` `push --date` created the program but
+  could not reserve the day (don't rerun `push`, which would create a duplicate; schedule
+  it in the app), non-zero for other errors. Check them.
 - **No `doctor`/health command — by design.** To diagnose setup programmatically, read
   `config show --json` (what resolved, where) and run `login` (exit `2` = auth/connectivity
   failure; it rewrites the token cache). Don't go looking for a single health command — chain
@@ -181,7 +190,7 @@ per-set detail to store.
 | `today [--date D]` | every session on a day, auto-resolved to type-correct detail | yes |
 | `session <id> [--free\|--program]` | full, verbatim detail for one session; auto-detects type | yes |
 | `library` | dump exercise catalog to `library.json` | yes |
-| `push <plan.json>` | create a program (`--dry-run` to preview) | yes |
+| `push <plan.json>` | create a program (`--dry-run` to preview, `--date D` to reserve it on the calendar) | yes |
 | `config show\|set\|path` | manage `config.json` | yes (`show`) |
 | `version` | build metadata (also `--version`) | yes |
 | `completion <shell>` | shell completion script | — |

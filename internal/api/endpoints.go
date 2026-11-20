@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"strconv"
 	"strings"
 	"time"
@@ -64,7 +65,7 @@ func (c *Client) fetchRecords(ctx context.Context, start, end time.Time) ([]work
 		return nil, err
 	}
 	if env.Code != 0 {
-		c.logger.Warn("fetch_workouts failed", "message", env.Message)
+		c.logger.Warn("fetch_workouts failed", "message", env.Text())
 		return nil, nil
 	}
 	return workout.ParseRecords(env.Data)
@@ -248,4 +249,26 @@ func rawData(d json.RawMessage) json.RawMessage {
 func hasData(d json.RawMessage) bool {
 	s := strings.TrimSpace(string(d))
 	return s != "" && s != "null" && s != "[]" && s != "{}"
+}
+
+// ReserveTemplate reserves a custom training template on the machine calendar for
+// date (YYYY-MM-DD). The server answers data:true on success.
+func (c *Client) ReserveTemplate(ctx context.Context, code string, date string, deviceType int) error {
+	payload := map[string]any{
+		"status":       1,
+		"deviceType":   deviceType,
+		"thatDay":      date,
+		"templateCode": code,
+	}
+	env, err := c.PostJSON(ctx, "/app/templateReservation", payload)
+	if err != nil {
+		return err
+	}
+	if env.Code != 0 {
+		return fmt.Errorf("schedule template failed: %s (code %d)", env.Text(), env.Code)
+	}
+	if strings.TrimSpace(string(env.Data)) != "true" {
+		return fmt.Errorf("schedule template failed: unexpected response %s", env.Data)
+	}
+	return nil
 }

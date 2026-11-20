@@ -68,7 +68,9 @@ func fakeAPI(t *testing.T) *httptest.Server {
 			}
 			_, _ = w.Write([]byte(`{"code":0,"data":{"isLeftRight":` + strconv.Itoa(lr) + `}}`))
 		case p == "/app/v2/customTrainingTemplate":
-			_, _ = w.Write([]byte(`{"code":0,"data":{"id":999,"name":"created"}}`))
+			_, _ = w.Write([]byte(`{"code":0,"data":"tpl_code_123"}`))
+		case p == "/app/templateReservation":
+			_, _ = w.Write([]byte(`{"code":0,"data":true}`))
 		default:
 			t.Logf("unhandled path: %s?%s", p, q)
 			_, _ = w.Write([]byte(`{"code":0,"data":[]}`))

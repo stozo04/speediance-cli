@@ -28,14 +28,24 @@ const mobileDevices = `{"brand":"google","device":"emulator64","deviceType":"sdk
 // (app 4.4.0) the library silently omits Vita exercises with code 0.
 const appVersionCode = "40400"
 
-// Envelope is the standard API response wrapper: {code, message, data}. data is
-// left raw because its shape depends on the endpoint; callers decode it into the
-// appropriate type. Responses are decoded loosely (no DisallowUnknownFields) so
-// new server fields don't break us (GOAL.md §8).
+// Envelope is the standard API response wrapper: {code, message|msg, data}. data
+// is left raw because its shape depends on the endpoint; callers decode it into
+// the appropriate type. Responses are decoded loosely (no DisallowUnknownFields)
+// so new server fields don't break us (GOAL.md §8).
 type Envelope struct {
 	Code    int             `json:"code"`
 	Message string          `json:"message"`
+	Msg     string          `json:"msg"`
 	Data    json.RawMessage `json:"data"`
+}
+
+// Text is the server's human-readable status. Some endpoints send it as
+// "message" and others (e.g. program creation, calendar reservation) as "msg".
+func (e Envelope) Text() string {
+	if e.Message != "" {
+		return e.Message
+	}
+	return e.Msg
 }
 
 // codeTokenExpired is the application-level "token expired" signal. On seeing

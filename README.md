@@ -66,6 +66,7 @@ speediance-cli session <training_id> --json  # full, verbatim detail for one ses
 speediance-cli library --search "row"        # exercise catalog (ids/names/muscles)
 speediance-cli push plan.json --dry-run      # build a program (preview)
 speediance-cli push plan.json                # create it on your account
+speediance-cli push plan.json --date today   # create and reserve on the machine calendar
 ```
 
 The reader commands emit JSON and own no data layout — pipe `workouts`/`session --json`
@@ -96,7 +97,8 @@ Author a plan (a human, a coach, or an LLM can write it), then `push` it:
 
 - **stdout is parseable** with `--json`; all human hints, warnings, and logs go to **stderr**.
   Never interleaved — pipe stdout straight into a parser.
-- **Exit codes:** `0` success, `2` auth failure, non-zero for other errors.
+- **Exit codes:** `0` success, `2` auth failure, `3` `push --date` created the program but
+  could not reserve the day, non-zero for other errors.
 - **Secrets:** `config.json`, `.token.json`, `.env`, and `plans/` are gitignored. Never
   commit them. Prefer env vars for agents/headless use.
 

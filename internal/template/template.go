@@ -227,7 +227,7 @@ func CreateTemplate(ctx context.Context, client *api.Client, name string, exerci
 		return nil, err
 	}
 	if env.Code != 0 {
-		return nil, fmt.Errorf("create template failed: %s (code %d)", env.Message, env.Code)
+		return nil, fmt.Errorf("create template failed: %s (code %d)", env.Text(), env.Code)
 	}
 	return env.Data, nil
 }

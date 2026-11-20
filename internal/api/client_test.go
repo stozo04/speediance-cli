@@ -134,7 +134,7 @@ func TestFrozenHeaders(t *testing.T) {
 		"Content-Type":    "application/json",
 		"Utc_offset":      "+0000",
 		"Timezone":        "GMT",
-		"Versioncode":     "40304",
+		"Versioncode":     "40400",
 		"Accept-Language": "en",
 		"App_type":        "SOFTWARE",
 		"Mobiledevices":   mobileDevices,

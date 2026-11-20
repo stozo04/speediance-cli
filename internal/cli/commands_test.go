@@ -585,8 +585,9 @@ func TestSessionFaithfulPassthroughJSON(t *testing.T) {
 
 // dispatchServer models the live namespace topology: program id 100 (type 5) and
 // free id 200 (type 1, rowing) both dated 2026-06-18, plus collision id 300 that
-// is a valid — but DIFFERENT — session in BOTH namespaces. Detail endpoints are
-// keyed by id; unknown ids get code 20 (info) or [] (detail), matching the API.
+// is a valid — but DIFFERENT — session in multiple namespaces, plus official courses
+// id 500 (type 2) and id 600 (type 6). Detail endpoints are keyed by id;
+// unknown ids get code 20 (info) or [] (detail), matching the API.
 func dispatchServer(t *testing.T) *httptest.Server {
 	t.Helper()
 	ts := time.Date(2026, 6, 18, 12, 0, 0, 0, time.Local).Unix()
@@ -603,6 +604,11 @@ func dispatchServer(t *testing.T) *httptest.Server {
 	}
 	programDetail := `{"code":0,"data":[{"actionLibraryName":"Row","forceControlScore":4,` +
 		`"finishedReps":[{"finishedCount":12,"trainingInfoDetail":{"weights":[20,20],"leftBreakTimes":[1,0]}}]}]}`
+	courseInfo := func(id string) string {
+		return `{"code":0,"data":{"completionRate":100.0,"type":2,"name":"Course ` + id + `","id":` + id + `}}`
+	}
+	courseDetail := `{"code":0,"data":[{"actionLibraryName":"Dynamic Side Lunge","score":0,` +
+		`"finishedReps":[{"finishedCount":15,"targetCount":20,"trainingInfoDetail":{"weights":[12,12]}}]}]}`
 	freeInfo := func(id string) string {
 		return `{"code":0,"data":{"id":` + id + `,"type":1,"totalCapacity":0.0,"totalEnergy":65098.22,` +
 			`"totalDistance":1505.5,"existBoatingSkiDataGraph":true,"trainingCount":15}}`
@@ -622,7 +628,9 @@ func dispatchServer(t *testing.T) *httptest.Server {
 			_, _ = fmt.Fprintf(w, `{"code":0,"data":[
 				{"trainingId":100,"id":900,"title":"Pull Program","type":5,"startTimestamp":%d,"trainingTime":1731,"calorie":205,"totalCapacity":8380.0},
 				{"trainingId":200,"id":901,"title":"Free Lift","type":1,"startTimestamp":%d,"trainingTime":904,"calorie":77,"totalCapacity":0.0},
-				{"trainingId":400,"id":902,"title":"Aerobic Rowing","type":7,"startTimestamp":%d,"trainingTime":1484,"calorie":250,"totalCapacity":0.0}]}`, ts, ts, ts)
+				{"trainingId":400,"id":902,"title":"Aerobic Rowing","type":7,"startTimestamp":%d,"trainingTime":1484,"calorie":250,"totalCapacity":0.0},
+				{"trainingId":500,"id":903,"title":"Killer Calves","type":2,"startTimestamp":%d,"trainingTime":4200,"calorie":636,"totalCapacity":5802.0},
+				{"trainingId":600,"id":904,"title":"84-Day Transformation: Chest","type":6,"startTimestamp":%d,"trainingTime":3000,"calorie":400,"totalCapacity":4810.0}]}`, ts, ts, ts, ts, ts)
 		case strings.Contains(p, "cttTrainingInfoDetail"):
 			if in(id, "100", "300") {
 				_, _ = w.Write([]byte(programDetail))
@@ -634,6 +642,18 @@ func dispatchServer(t *testing.T) *httptest.Server {
 				_, _ = w.Write([]byte(programInfo(id)))
 			} else {
 				_, _ = w.Write([]byte(`{"code":20,"message":"no program"}`))
+			}
+		case strings.Contains(p, "courseTrainingInfoDetail"):
+			if in(id, "500", "600", "300") {
+				_, _ = w.Write([]byte(courseDetail))
+			} else {
+				_, _ = w.Write([]byte(`{"code":0,"data":[]}`))
+			}
+		case strings.Contains(p, "courseTrainingInfo"):
+			if in(id, "500", "600", "300") {
+				_, _ = w.Write([]byte(courseInfo(id)))
+			} else {
+				_, _ = w.Write([]byte(`{"code":20,"message":"no course"}`))
 			}
 		case strings.Contains(p, "freeTrainingDetail"):
 			if id == "400" {
@@ -701,8 +721,8 @@ func TestTodayResolvesEverySessionType(t *testing.T) {
 	if err := json.Unmarshal([]byte(out), &arr); err != nil {
 		t.Fatalf("bad json: %v\n%s", err, out)
 	}
-	if len(arr) != 3 {
-		t.Fatalf("today returned %d sessions, want 3\n%s", len(arr), out)
+	if len(arr) != 5 {
+		t.Fatalf("today returned %d sessions, want 5\n%s", len(arr), out)
 	}
 	byID := map[int]sessionDoc{}
 	for _, s := range arr {
@@ -713,6 +733,16 @@ func TestTodayResolvesEverySessionType(t *testing.T) {
 	}
 	if byID[200].Kind != "free" {
 		t.Errorf("session 200 kind = %q, want free", byID[200].Kind)
+	}
+	// Official courses (type 2 and type 6) auto-resolve to the course namespace.
+	if byID[500].Kind != "course" {
+		t.Errorf("session 500 (Killer Calves) kind = %q, want course", byID[500].Kind)
+	}
+	if !strings.Contains(string(byID[500].Detail), `"Dynamic Side Lunge"`) {
+		t.Errorf("session 500 detail missing the course exercise data:\n%s", byID[500].Detail)
+	}
+	if byID[600].Kind != "course" {
+		t.Errorf("session 600 (84-Day Transformation) kind = %q, want course", byID[600].Kind)
 	}
 	// Guided rowing (type 7) auto-resolves to the free namespace WITH a populated
 	// detail — so a single `today` call delivers its per-interval data too.
@@ -751,8 +781,42 @@ func TestSessionGuidedRowingHasDetail(t *testing.T) {
 	}
 }
 
-// TestSessionCollisionOverride: when an id is valid in both namespaces, the
-// default prefers program, and --free / --program force the intended one.
+// TestSessionAutoDetectsCourse asserts that given only an id for an official course
+// session, the tool probes program, finds nothing, checks course, and
+// returns kind=course with the courseTrainingInfo[Detail] payloads.
+func TestSessionAutoDetectsCourse(t *testing.T) {
+	srv := dispatchServer(t)
+	defer srv.Close()
+	out, _, err := runCLI(t, srv.URL, "session", "500", "--json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var doc sessionDoc
+	if err := json.Unmarshal([]byte(out), &doc); err != nil {
+		t.Fatalf("bad json: %v\n%s", err, out)
+	}
+	if doc.Kind != "course" {
+		t.Errorf("kind = %q, want course (auto-detected)", doc.Kind)
+	}
+	if !strings.Contains(string(doc.Info), "Course 500") {
+		t.Errorf("course info payload missing:\n%s", doc.Info)
+	}
+	if !strings.Contains(string(doc.Detail), `"Dynamic Side Lunge"`) {
+		t.Errorf("course detail payload missing:\n%s", doc.Detail)
+	}
+
+	// Also check human display output
+	hout, _, err := runCLI(t, srv.URL, "session", "500")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(hout, "training 500 (course): Dynamic Side Lunge") {
+		t.Errorf("unexpected human output for course session: %s", hout)
+	}
+}
+
+// TestSessionCollisionOverride: when an id is valid in multiple namespaces, the
+// default prefers program, and --free / --program / --course force the intended one.
 func TestSessionCollisionOverride(t *testing.T) {
 	srv := dispatchServer(t)
 	defer srv.Close()
@@ -777,14 +841,26 @@ func TestSessionCollisionOverride(t *testing.T) {
 	if d := get("--program"); d.Kind != "program" {
 		t.Errorf("--program kind = %q, want program", d.Kind)
 	}
+	if d := get("--course"); d.Kind != "course" || !strings.Contains(string(d.Detail), "Dynamic Side Lunge") {
+		t.Errorf("--course kind = %q, want course", d.Kind)
+	}
 }
 
-// TestSessionMutuallyExclusiveFlags: --free and --program together is a usage error.
+// TestSessionMutuallyExclusiveFlags: mutually exclusive namespace flags produce usage errors.
 func TestSessionMutuallyExclusiveFlags(t *testing.T) {
 	srv := dispatchServer(t)
 	defer srv.Close()
-	if _, _, err := runCLI(t, srv.URL, "session", "100", "--json", "--free", "--program"); err == nil {
-		t.Error("--free --program together should be a usage error")
+	cases := [][]string{
+		{"--free", "--program"},
+		{"--free", "--course"},
+		{"--program", "--course"},
+		{"--free", "--program", "--course"},
+	}
+	for _, flags := range cases {
+		args := append([]string{"session", "100", "--json"}, flags...)
+		if _, _, err := runCLI(t, srv.URL, args...); err == nil {
+			t.Errorf("%v together should be a usage error", flags)
+		}
 	}
 }
 

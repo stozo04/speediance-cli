@@ -22,7 +22,8 @@ same `--json`).
 > config.json) if you want to try another device.
 
 > Point an agent at this repo. See **[the machine contract](docs/MACHINE_CONTRACT.md)** for the full self-serve guide
-> (setup, credentials, command surface, plan schema).
+> (setup, credentials, command surface, plan schema), and **[API notes & telemetry caveats](docs/API_NOTES.md)**
+> for details on the reverse-engineered wire format and data traps.
 
 > Unofficial — uses the Speediance cloud API reverse-engineered from the Android app.
 > Personal use, your own account. Built on the MIT-licensed

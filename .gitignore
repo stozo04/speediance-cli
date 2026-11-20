@@ -11,7 +11,8 @@ config.json
 # User plan files (examples live under plans/ but are gitignored per spec).
 /plans/
 
-# Build output.
+# Build output (`make build` writes ./bin).
+/bin/
 /dist/
 /speediance-cli
 /speediance-cli.exe

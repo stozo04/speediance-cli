@@ -4,7 +4,7 @@
 Based on OpenLoop PR #176. Only own-skill-tree paths may differ.
 Run --check before a PR. Reconcile all copies before --fix --from <harness>.
 Provider settings and adapters outside skills stay in their native formats.
-Requires Python 3.10+ and Git. Repair preserves source bytes and retargets paths.
+Requires Python 3.9+ and Git. Repair preserves source bytes and retargets paths.
 """
 import argparse
 import filecmp
@@ -209,7 +209,8 @@ def main(argv):
             if text is None:
                 shutil.copyfile(src_tree[rel], dst)
             else:
-                dst.write_text(text.replace(SELF_TOKEN, f".{h}"), encoding="utf-8", newline="")
+                with dst.open("w", encoding="utf-8", newline="") as fh:
+                    fh.write(text.replace(SELF_TOKEN, f".{h}"))
             copied += 1
             print(f"  wrote   .{h}/{SUBTREE}/{rel}")
     print(f"\nsynced from .{args.source}: {copied} copied, {removed} removed — `git add` the result")

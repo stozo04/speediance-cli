@@ -50,6 +50,11 @@ type Client struct {
 	now    func() time.Time // injectable clock for the Timestamp header (tests).
 }
 
+// Logger returns the client's structured logger.
+func (c *Client) Logger() *slog.Logger {
+	return c.logger
+}
+
 // Config constructs a Client. Token/UserID may be empty (a fresh login happens
 // lazily on first use). BaseURL overrides region resolution for tests.
 type Config struct {
@@ -132,7 +137,7 @@ func (c *Client) setHeaders(req *http.Request) {
 		"Timestamp":       {ts},
 		"Utc_offset":      {"+0000"},
 		"Timezone":        {"GMT"},
-		"Versioncode":     {"40304"},
+		"Versioncode":     {appVersionCode},
 		"Accept-Language": {"en"},
 		"App_type":        {"SOFTWARE"},
 		"Mobiledevices":   {mobileDevices},

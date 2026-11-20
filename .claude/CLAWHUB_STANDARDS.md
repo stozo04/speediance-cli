@@ -181,6 +181,7 @@ Run before merging anything that touches config, auth, file I/O, network, or
 - [ ] No machine-specific paths (home dirs, usernames, drive letters) in code, docs, comments, or commit messages — placeholders or runtime resolution only.
 - [ ] `go build ./... && go vet ./... && go test ./...` all green; `gofmt -l` clean.
 - [ ] New security behavior is pinned by an **immutable regression test** (below).
+- [ ] To see the scan before merging, run **Deploy to ClawHub (from branch)** with `target=scan-copy`. It deletes its `speediance-scan-*` copy when it finishes. Never publish to a hand-picked scratch slug, because nothing cleans those up (see `RELEASING.md`).
 
 ## Immutable tests for security behavior
 

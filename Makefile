@@ -56,7 +56,7 @@ snapshot: ## Cross-compile a local snapshot with GoReleaser (no publish)
 	goreleaser build --snapshot --clean
 
 .PHONY: check
-check: check-agents check-clawhub tidy fmt vet lint test-race ## Run the full pre-commit gauntlet
+check: check-agents check-clawhub test-scripts tidy fmt vet lint test-race ## Run the full pre-commit gauntlet
 
 .PHONY: clean
 clean: ## Remove build artifacts
@@ -66,6 +66,11 @@ clean: ## Remove build artifacts
 check-agents: ## Check shared instructions and skill mirrors (Python 3)
 	python3 scripts/sync-harness-skills.py --check
 	python3 scripts/test-sync-harness-skills.py
+
+.PHONY: test-scripts
+test-scripts: ## Test the ClawHub publish and scan-copy scripts against a fake clawhub
+	bash scripts/test-publish-clawhub.sh
+	bash scripts/test-clawhub-scan-copies.sh
 
 CLAWHUB_VERSION := 0.26.0
 

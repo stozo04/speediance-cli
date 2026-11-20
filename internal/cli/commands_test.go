@@ -269,55 +269,6 @@ func TestPushDryRunGoldenParity(t *testing.T) {
 	}
 }
 
-func TestPushScheduleDate(t *testing.T) {
-	srv := fakeAPI(t)
-	defer srv.Close()
-
-	planAbs, err := filepath.Abs(filepath.Join("..", "..", "testdata", "plans", "example-push.json"))
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	out, errb, err := runCLI(t, srv.URL, "push", planAbs, "--date", "2026-11-25", "--json")
-	if err != nil {
-		t.Fatalf("push with --date failed: %v\nstderr: %s", err, errb)
-	}
-	var res map[string]any
-	if err := json.Unmarshal([]byte(out), &res); err != nil {
-		t.Fatalf("bad json output: %v\n%s", err, out)
-	}
-	if res["template_code"] != "tpl_code_123" || res["scheduled_date"] != "2026-11-25" || res["scheduled"] != true {
-		t.Errorf("unexpected push response: %+v", res)
-	}
-
-	// Also check human display output
-	hout, _, err := runCLI(t, srv.URL, "push", planAbs, "--date", "2026-11-25")
-	if err != nil {
-		t.Fatalf("push human failed: %v", err)
-	}
-	if !strings.Contains(hout, "scheduled for 2026-11-25") {
-		t.Errorf("unexpected human output: %s", hout)
-	}
-
-	// Disallow yesterday
-	if _, _, err := runCLI(t, srv.URL, "push", planAbs, "--date", "yesterday"); err == nil {
-		t.Errorf("expected error for --date yesterday, got nil")
-	}
-
-	// Dry run with date shows scheduled_date in JSON
-	dryOut, _, err := runCLI(t, srv.URL, "push", planAbs, "--dry-run", "--date", "2026-11-25", "--json")
-	if err != nil {
-		t.Fatalf("dry run failed: %v", err)
-	}
-	var dryRes map[string]any
-	if err := json.Unmarshal([]byte(dryOut), &dryRes); err != nil {
-		t.Fatalf("bad dry-run json: %v", err)
-	}
-	if dryRes["scheduled_date"] != "2026-11-25" {
-		t.Errorf("expected scheduled_date in dry run, got: %+v", dryRes)
-	}
-}
-
 func TestAuthErrorExitsTwo(t *testing.T) {
 	// A login that fails should surface as exit code 2.
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {

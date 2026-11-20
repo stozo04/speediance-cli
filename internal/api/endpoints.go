@@ -251,7 +251,8 @@ func hasData(d json.RawMessage) bool {
 	return s != "" && s != "null" && s != "[]" && s != "{}"
 }
 
-// ReserveTemplate schedules a custom training template onto the user's Speediance machine calendar.
+// ReserveTemplate reserves a custom training template on the machine calendar for
+// date (YYYY-MM-DD). The server answers data:true on success.
 func (c *Client) ReserveTemplate(ctx context.Context, code string, date string, deviceType int) error {
 	payload := map[string]any{
 		"status":       1,
@@ -265,6 +266,9 @@ func (c *Client) ReserveTemplate(ctx context.Context, code string, date string, 
 	}
 	if env.Code != 0 {
 		return fmt.Errorf("schedule template failed: %s (code %d)", env.Message, env.Code)
+	}
+	if strings.TrimSpace(string(env.Data)) != "true" {
+		return fmt.Errorf("schedule template failed: unexpected response %s", env.Data)
 	}
 	return nil
 }

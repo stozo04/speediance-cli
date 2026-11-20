@@ -97,7 +97,8 @@ Author a plan (a human, a coach, or an LLM can write it), then `push` it:
 
 - **stdout is parseable** with `--json`; all human hints, warnings, and logs go to **stderr**.
   Never interleaved — pipe stdout straight into a parser.
-- **Exit codes:** `0` success, `2` auth failure, non-zero for other errors.
+- **Exit codes:** `0` success, `2` auth failure, `3` `push --date` created the program but
+  could not reserve the day, non-zero for other errors.
 - **Secrets:** `config.json`, `.token.json`, `.env`, and `plans/` are gitignored. Never
   commit them. Prefer env vars for agents/headless use.
 

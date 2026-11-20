@@ -3,7 +3,7 @@ name: speediance
 description: >
   Read completed workouts (summaries and full per-set detail), browse and export the
   exercise catalog, and push custom training programs to your Speediance (Gym Monster)
-  smart cable machine via its cloud API. Authenticates with your account credentials,
+  smart cable machine via its cloud API, optionally reserving one on its calendar. Authenticates with your account credentials,
   caches a session token in your OS user-cache directory (override with an exported SPEEDIANCE_TOKEN_CACHE),
   and makes outbound HTTPS requests to the Speediance cloud API. Reads and emits structured
   data. It writes local files only in these cases: the session token cache; config.json when you
@@ -19,7 +19,7 @@ metadata:
     primaryEnv: SPEEDIANCE_EMAIL
     permissions:
       network:
-        - "Speediance cloud API (HTTPS) — authentication, workout history, exercise catalog, program creation"
+        - "Speediance cloud API (HTTPS) — authentication, workout history, exercise catalog, program creation, training-calendar reservation (`push --date`)"
       files.read:
         - "config.json — optional credential/config file (working directory, or your OS user-config dir)"
         - "`.env` — optional env file in the working directory; only the SPEEDIANCE_EMAIL, SPEEDIANCE_PASSWORD, SPEEDIANCE_REGION and SPEEDIANCE_DEVICE_TYPE keys are read (parsed to a map, never exported into the process environment); the path keys SPEEDIANCE_CONFIG and SPEEDIANCE_TOKEN_CACHE are ignored there"
@@ -273,7 +273,11 @@ Author a plan JSON, then push it — the program appears on the machine immediat
 ```bash
 speediance-cli push plan.json --dry-run   # preview payload, no network write
 speediance-cli push plan.json             # create it on the account
+speediance-cli push plan.json --date today  # create it and reserve it on the calendar (today | YYYY-MM-DD)
 ```
+
+`push --json` prints `{"template_code": "…", "scheduled_date": "YYYY-MM-DD"}`, with
+`scheduled_date` null when `--date` was not given. `--date` only accepts today or later.
 
 **Plan JSON format:**
 
@@ -324,7 +328,7 @@ layout.
 | `today [--date D]` | Every session on a day, auto-resolved to type-correct detail (the one-shot entry point) | ✓ |
 | `session <training_id> [--free\|--program]` | Full, verbatim detail for one session; auto-detects program/free/rowing | ✓ |
 | `library [--search X] [--out FILE]` | Dump or search exercise catalog | ✓ |
-| `push <plan.json> [--dry-run]` | Create a training program on the account | ✓ |
+| `push <plan.json> [--dry-run] [--date D]` | Create a training program on the account, optionally reserving it on the calendar | ✓ |
 | `config show\|set\|path` | Manage `config.json` | ✓ (`show`) |
 | `version` | Build metadata (also `--version`) | ✓ |
 | `completion <shell>` | Shell completion (bash/zsh/fish/powershell) | — |
@@ -332,7 +336,9 @@ layout.
 ## Conventions
 
 - **stdout is parseable** with `--json`; all human-readable hints go to **stderr**.
-- **Exit codes**: `0` success, `2` authentication failure, non-zero for other errors.
+- **Exit codes**: `0` success, `2` authentication failure, `3` `push --date` created the
+  program but could not reserve the day (don't rerun `push`, or it creates a duplicate),
+  non-zero for other errors.
 - **Secrets**: `config.json`, `.token.json`, `.env` are gitignored — never commit them.
 - **Token caching**: after the first login, the token is cached in your **OS user-cache
   directory** (e.g. `%LocalAppData%\speediance\token.json` on Windows, `~/.cache/speediance/token.json`

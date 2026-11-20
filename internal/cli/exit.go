@@ -12,6 +12,9 @@ const (
 	ExitUsage      = 64
 	ExitConfig     = 78 // missing credentials / bad config.
 	ExitUnresolved = 65 // bad plan / unresolved exercise id.
+	// ExitScheduleFailed: push created the program but could not reserve it on
+	// the calendar, so a retry must not create it again.
+	ExitScheduleFailed = 3
 )
 
 // ExitError carries an explicit process exit code alongside an error. main

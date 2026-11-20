@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -12,7 +11,14 @@ import (
 	"github.com/stozo04/speediance-cli/v2/internal/template"
 )
 
-// newPushCmd implements `push <plan.json> [--dry-run] [--date today|yesterday|YYYY-MM-DD] [--json]` (GOAL.md §9.5).
+// pushResult is the --json output of every push that reaches the account.
+// ScheduledDate is null unless --date reserved the program on the calendar.
+type pushResult struct {
+	TemplateCode  string  `json:"template_code"`
+	ScheduledDate *string `json:"scheduled_date"`
+}
+
+// newPushCmd implements `push <plan.json> [--dry-run] [--date today|YYYY-MM-DD] [--json]` (GOAL.md §9.5).
 func newPushCmd(app *App) *cobra.Command {
 	var (
 		dryRun bool
@@ -28,17 +34,9 @@ func newPushCmd(app *App) *cobra.Command {
 			if err != nil {
 				return withCode(ExitUnresolved, err)
 			}
-
-			var targetDate string
-			if date != "" {
-				if strings.ToLower(date) == "yesterday" {
-					return withCode(ExitUsage, fmt.Errorf("cannot schedule a workout for yesterday"))
-				}
-				day, err := parseDay(date, time.Now())
-				if err != nil {
-					return withCode(ExitUsage, err)
-				}
-				targetDate = day.Format("2006-01-02")
+			targetDate, err := parseScheduleDate(date, time.Now())
+			if err != nil {
+				return err
 			}
 
 			client, cfg, err := app.apiClient(true)
@@ -86,33 +84,30 @@ func newPushCmd(app *App) *cobra.Command {
 				return withCode(ExitUnresolved, err)
 			}
 			app.saveToken(cfg, client)
-
-			var templateCode string
-			_ = json.Unmarshal(data, &templateCode)
-			if templateCode == "" {
-				templateCode = strings.Trim(string(data), `"`)
+			code, err := templateCodeFrom(data)
+			if err != nil {
+				return fmt.Errorf("created '%s' but %w", plan.Name, err)
 			}
+			result := pushResult{TemplateCode: code}
 
 			if targetDate != "" {
-				if templateCode == "" {
-					return fmt.Errorf("template '%s' was created but server returned no template code for scheduling", plan.Name)
+				if err := client.ReserveTemplate(cmd.Context(), code, targetDate, cfg.DeviceType); err != nil {
+					if asJSON {
+						_ = writeJSON(stdout, result)
+					}
+					return withCode(ExitScheduleFailed, fmt.Errorf(
+						"created '%s' (template code %s) but could not schedule it for %s: %w",
+						plan.Name, code, targetDate, err))
 				}
-				if err := client.ReserveTemplate(cmd.Context(), templateCode, targetDate, cfg.DeviceType); err != nil {
-					return fmt.Errorf("created template '%s' (code %s) but scheduling for %s failed: %w", plan.Name, templateCode, targetDate, err)
-				}
-				if asJSON {
-					return writeJSON(stdout, map[string]any{
-						"template_code":  templateCode,
-						"scheduled_date": targetDate,
-						"scheduled":      true,
-					})
-				}
-				fprintf(stdout, "Created '%s' and scheduled for %s on your Speediance calendar.\n", plan.Name, targetDate)
-				return nil
+				result.ScheduledDate = &targetDate
 			}
 
 			if asJSON {
-				return writeJSON(stdout, data)
+				return writeJSON(stdout, result)
+			}
+			if targetDate != "" {
+				fprintf(stdout, "Created '%s' and scheduled it for %s on your Speediance calendar.\n", plan.Name, targetDate)
+				return nil
 			}
 			fprintf(stdout, "Created '%s' on your Speediance account. Open the app to run it.\n", plan.Name)
 			return nil
@@ -120,6 +115,35 @@ func newPushCmd(app *App) *cobra.Command {
 	}
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "build payload, do not send")
 	cmd.Flags().BoolVar(&asJSON, "json", false, "print payload/result as JSON")
-	cmd.Flags().StringVar(&date, "date", "", "optional date to schedule on the machine calendar: today | yesterday | YYYY-MM-DD")
+	cmd.Flags().StringVar(&date, "date", "",
+		"also reserve the program on the machine calendar for this day: today | YYYY-MM-DD")
 	return cmd
+}
+
+// parseScheduleDate resolves --date to a YYYY-MM-DD day, or "" when the flag is
+// unset. The calendar only takes today or later, so a past day is a usage error.
+func parseScheduleDate(s string, now time.Time) (string, error) {
+	if s == "" {
+		return "", nil
+	}
+	day, err := parseDay(s, now)
+	if err != nil {
+		return "", withCode(ExitUsage, err)
+	}
+	y, m, d := now.Date()
+	if day.Before(time.Date(y, m, d, 0, 0, 0, 0, time.Local)) {
+		return "", withCode(ExitUsage, fmt.Errorf(
+			"--date %s is in the past; schedule today or later", day.Format(time.DateOnly)))
+	}
+	return day.Format(time.DateOnly), nil
+}
+
+// templateCodeFrom reads the template code from a create response, whose data
+// is a bare JSON string such as "6afe53cee4b06ab9dced9026".
+func templateCodeFrom(data json.RawMessage) (string, error) {
+	var code string
+	if err := json.Unmarshal(data, &code); err != nil || code == "" {
+		return "", fmt.Errorf("the server returned no template code (data: %s)", data)
+	}
+	return code, nil
 }

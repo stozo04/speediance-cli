@@ -1,10 +1,8 @@
 # Speediance API — Data Model & Telemetry Notes
 
-These notes document empirical observations from the Speediance cloud API on a live
-Gym Monster 1 account (app v4.4.0, device_type=1, Global region, observed November 2026).
-These notes document data quirks, wire-format semantics, and traps observed in the
-reverse-engineered API to help callers interpret sessions and avoid silent data corruption.
-Most of them fail *silently*, which is why they are documented here.
+These notes record data quirks, wire-format semantics, and traps in the reverse-engineered
+Speediance cloud API, observed on a live Gym Monster 1 account (app v4.4.0, device_type=1,
+Global region, November 2026). Most of them fail *silently*, which is why they are documented here.
 
 ---
 
@@ -120,7 +118,6 @@ The sole exception is the exercise library catalog's `recommendedWeight`, which 
 
 ## 8. Presets vs Custom Weights
 
-In observed template creation payloads:
-Template payloads accept RM-based presets (`presetId != -1`) or custom weights (`presetId: -1`).
-When using RM-based presets, the target percentage is stored in `counterweight2`, while `weights`
-holds 0.
+In observed template creation payloads, each exercise either uses an RM-based preset
+(`templatePresetId != -1`) or custom weights (`templatePresetId: -1`). With an RM-based preset,
+the target percentage is stored in `counterweight2`, while `weights` holds 0.

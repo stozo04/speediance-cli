@@ -122,8 +122,10 @@ speediance-cli push plan.json                    # create it on the account
 speediance-cli push plan.json --date 2026-11-25  # create it and reserve it on the calendar (today | YYYY-MM-DD)
 ```
 
-`push --json` prints `{"template_code": "…", "scheduled_date": "YYYY-MM-DD"}`, with
-`scheduled_date` null when `--date` was not given. `--date` only accepts today or later.
+`push --json` prints the server's create response (the template code as a JSON string).
+With `--date` it prints `{"template_code": "…", "scheduled_date": "YYYY-MM-DD"}` instead,
+and `--dry-run --date` prints `{"payload": …, "scheduled_date": "YYYY-MM-DD"}`. `--date`
+only accepts today or later.
 
 ### Plan JSON
 
@@ -158,8 +160,8 @@ per-set detail to store.
 - **stdout is parseable** with `--json`; human hints, warnings, and logs go to **stderr**.
   They are never interleaved, so piping stdout into a parser is safe.
 - **Exit codes:** `0` success, `2` auth failure, `3` `push --date` created the program but
-  could not reserve the day (don't rerun `push`, or it creates a duplicate), non-zero for
-  other errors. Check them.
+  could not reserve the day (don't rerun `push`, which would create a duplicate; schedule
+  it in the app), non-zero for other errors. Check them.
 - **No `doctor`/health command — by design.** To diagnose setup programmatically, read
   `config show --json` (what resolved, where) and run `login` (exit `2` = auth/connectivity
   failure; it rewrites the token cache). Don't go looking for a single health command — chain

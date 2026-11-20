@@ -65,7 +65,7 @@ func (c *Client) fetchRecords(ctx context.Context, start, end time.Time) ([]work
 		return nil, err
 	}
 	if env.Code != 0 {
-		c.logger.Warn("fetch_workouts failed", "message", env.Message)
+		c.logger.Warn("fetch_workouts failed", "message", env.Text())
 		return nil, nil
 	}
 	return workout.ParseRecords(env.Data)
@@ -265,7 +265,7 @@ func (c *Client) ReserveTemplate(ctx context.Context, code string, date string, 
 		return err
 	}
 	if env.Code != 0 {
-		return fmt.Errorf("schedule template failed: %s (code %d)", env.Message, env.Code)
+		return fmt.Errorf("schedule template failed: %s (code %d)", env.Text(), env.Code)
 	}
 	if strings.TrimSpace(string(env.Data)) != "true" {
 		return fmt.Errorf("schedule template failed: unexpected response %s", env.Data)

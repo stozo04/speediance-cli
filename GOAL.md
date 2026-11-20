@@ -173,7 +173,7 @@ speediance-cli/
 | `session <training_id> [--free\|--program]` | port | yes | full detail for one session; auto-detects program/free/rowing |
 | `today [--date D]` | **new** | yes | every session on a day, auto-resolved to type-correct detail |
 | `library [--search X] [--out FILE]` | port | yes | dump/search exercise catalog |
-| `push <plan.json> [--dry-run]` | port | yes | create program (dry-run previews payload) |
+| `push <plan.json> [--dry-run] [--date D]` | port | yes | create program (dry-run previews payload; `--date` also reserves it on the calendar) |
 | `sync [--date D] [--days N] [--weeks-dir DIR]` | port | — | optional Markdown sheet write |
 | `config [show\|set\|path]` | **new** | yes (`show`) | manage `config.json` without hand-editing |
 | `version` | **new** | yes | build metadata; plus root `--version` |
@@ -385,7 +385,7 @@ all removed.
 - Human + `--search`: `N match '<q>':` then `[id] name (muscle)` (first 60). Human without search:
   nothing on stdout (only the stderr save line).
 
-### 9.5 `push <plan.json> [--dry-run] [--json]`
+### 9.5 `push <plan.json> [--dry-run] [--date D] [--json]`
 - `load_plan`: JSON must contain `name` and `exercises` (else error). Plan shape:
   ```json
   {"name":"Pull Day","exercises":[
@@ -394,8 +394,13 @@ all removed.
 - stderr summary: `Plan: <name> - <nEx> exercises, <nSets> sets`.
 - `--dry-run`: build payload, **do not POST**. `--json` prints the payload (see [§10](#10-pushtemplate-payload-spec--fidelity-critical));
   human prints `[dry-run] totalCapacity=…; not sent.` and per-action `groupId … reps … | weights …`.
-- real: `POST /app/v2/customTrainingTemplate`; `code != 0` → error. `--json` prints response `data`;
-  human prints `Created '<name>' on your Speediance account…`.
+- real: `POST /app/v2/customTrainingTemplate`; `code != 0` → error. `--json` prints response `data`
+  (the template code as a JSON string); human prints `Created '<name>' on your Speediance account…`.
+- `--date today|YYYY-MM-DD` (today or later, else a usage error before any write): after creating,
+  `POST /app/templateReservation` `{"status":1,"deviceType":N,"thatDay":"YYYY-MM-DD","templateCode":"<data>"}`;
+  success is `data: true`. `--json` prints `{"template_code","scheduled_date"}`; `--dry-run --json`
+  prints `{"payload","scheduled_date"}`. If the reservation fails the template already exists, so
+  exit 3 (`--json` still prints `template_code` with `scheduled_date: null`).
 
 ### 9.6 `sync [--date D] [--days N] [--weeks-dir DIR]`  (default `--date today`, `--days 3`)
 See [§11](#11-sync-command--fuzzy-matching). Requires a weeks dir; no `--json`.
@@ -521,6 +526,7 @@ unmaintained) into `internal/sheet`.
 |---|---|
 | Success | 0 |
 | Auth error (`AuthError`) | **2** (preserve Python) |
+| `push --date` created the program but could not reserve the day | 3 |
 | Missing credentials / missing `--weeks-dir` / bad plan / unresolved exercise id | non-zero (1, or a dedicated code) |
 | Any other error | 1 |
 

@@ -3,7 +3,8 @@ name: speediance
 description: >
   Read completed workouts (summaries and full per-set detail), browse and export the
   exercise catalog, and push custom training programs to your Speediance (Gym Monster)
-  smart cable machine via its cloud API, optionally reserving one on its calendar. Authenticates with your account credentials,
+  smart cable machine via its cloud API, optionally reserving one on its calendar.
+  Authenticates with your account credentials,
   caches a session token in your OS user-cache directory (override with an exported SPEEDIANCE_TOKEN_CACHE),
   and makes outbound HTTPS requests to the Speediance cloud API. Reads and emits structured
   data. It writes local files only in these cases: the session token cache; config.json when you
@@ -276,8 +277,10 @@ speediance-cli push plan.json             # create it on the account
 speediance-cli push plan.json --date today  # create it and reserve it on the calendar (today | YYYY-MM-DD)
 ```
 
-`push --json` prints `{"template_code": "…", "scheduled_date": "YYYY-MM-DD"}`, with
-`scheduled_date` null when `--date` was not given. `--date` only accepts today or later.
+`push --json` prints the server's create response (the template code as a JSON string).
+With `--date` it prints `{"template_code": "…", "scheduled_date": "YYYY-MM-DD"}` instead,
+and `--dry-run --date` prints `{"payload": …, "scheduled_date": "YYYY-MM-DD"}`. `--date`
+only accepts today or later.
 
 **Plan JSON format:**
 
@@ -337,8 +340,8 @@ layout.
 
 - **stdout is parseable** with `--json`; all human-readable hints go to **stderr**.
 - **Exit codes**: `0` success, `2` authentication failure, `3` `push --date` created the
-  program but could not reserve the day (don't rerun `push`, or it creates a duplicate),
-  non-zero for other errors.
+  program but could not reserve the day. Don't rerun `push`, which would create a
+  duplicate; ask the user to schedule it in the app. Non-zero for other errors.
 - **Secrets**: `config.json`, `.token.json`, `.env` are gitignored — never commit them.
 - **Token caching**: after the first login, the token is cached in your **OS user-cache
   directory** (e.g. `%LocalAppData%\speediance\token.json` on Windows, `~/.cache/speediance/token.json`

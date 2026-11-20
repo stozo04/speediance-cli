@@ -2,18 +2,21 @@ package cli
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
 
+	"github.com/stozo04/speediance-cli/v2/internal/api"
 	"github.com/stozo04/speediance-cli/v2/internal/template"
 )
 
-// pushResult is the --json output of every push that reaches the account.
-// ScheduledDate is null unless --date reserved the program on the calendar.
-type pushResult struct {
+// scheduledPush is the --json output of `push --date`. ScheduledDate is null when
+// the program was created but the calendar reservation failed.
+type scheduledPush struct {
 	TemplateCode  string  `json:"template_code"`
 	ScheduledDate *string `json:"scheduled_date"`
 }
@@ -84,30 +87,11 @@ func newPushCmd(app *App) *cobra.Command {
 				return withCode(ExitUnresolved, err)
 			}
 			app.saveToken(cfg, client)
-			code, err := templateCodeFrom(data)
-			if err != nil {
-				return fmt.Errorf("created '%s' but %w", plan.Name, err)
-			}
-			result := pushResult{TemplateCode: code}
-
 			if targetDate != "" {
-				if err := client.ReserveTemplate(cmd.Context(), code, targetDate, cfg.DeviceType); err != nil {
-					if asJSON {
-						_ = writeJSON(stdout, result)
-					}
-					return withCode(ExitScheduleFailed, fmt.Errorf(
-						"created '%s' (template code %s) but could not schedule it for %s: %w",
-						plan.Name, code, targetDate, err))
-				}
-				result.ScheduledDate = &targetDate
+				return schedulePush(cmd, client, cfg.DeviceType, plan.Name, data, targetDate, asJSON)
 			}
-
 			if asJSON {
-				return writeJSON(stdout, result)
-			}
-			if targetDate != "" {
-				fprintf(stdout, "Created '%s' and scheduled it for %s on your Speediance calendar.\n", plan.Name, targetDate)
-				return nil
+				return writeJSON(stdout, data)
 			}
 			fprintf(stdout, "Created '%s' on your Speediance account. Open the app to run it.\n", plan.Name)
 			return nil
@@ -120,15 +104,49 @@ func newPushCmd(app *App) *cobra.Command {
 	return cmd
 }
 
+// schedulePush reserves a just-created template on the calendar. Every failure
+// here exits ExitScheduleFailed because the template already exists, so the
+// caller must not rerun push.
+func schedulePush(cmd *cobra.Command, client *api.Client, deviceType int, name string,
+	created json.RawMessage, day string, asJSON bool,
+) error {
+	stdout := cmd.OutOrStdout()
+	code, err := templateCodeFrom(created)
+	if err != nil {
+		return withCode(ExitScheduleFailed, fmt.Errorf(
+			"created '%s' but could not schedule it for %s: %w", name, day, err))
+	}
+	result := scheduledPush{TemplateCode: code}
+	if err := client.ReserveTemplate(cmd.Context(), code, day, deviceType); err != nil {
+		if asJSON {
+			_ = writeJSON(stdout, result)
+		}
+		// Not wrapped: an auth failure here must not be reclassified as exit 2,
+		// which would tell the caller to fix credentials and push again.
+		return withCode(ExitScheduleFailed, fmt.Errorf(
+			"created '%s' (template code %s) but could not schedule it for %s: %s",
+			name, code, day, err.Error()))
+	}
+	result.ScheduledDate = &day
+	if asJSON {
+		return writeJSON(stdout, result)
+	}
+	fprintf(stdout, "Created '%s' and scheduled it for %s on your Speediance calendar.\n", name, day)
+	return nil
+}
+
 // parseScheduleDate resolves --date to a YYYY-MM-DD day, or "" when the flag is
 // unset. The calendar only takes today or later, so a past day is a usage error.
 func parseScheduleDate(s string, now time.Time) (string, error) {
 	if s == "" {
 		return "", nil
 	}
+	if strings.TrimSpace(s) == "" {
+		return "", withCode(ExitUsage, errors.New("--date is blank: want today or YYYY-MM-DD"))
+	}
 	day, err := parseDay(s, now)
 	if err != nil {
-		return "", withCode(ExitUsage, err)
+		return "", withCode(ExitUsage, fmt.Errorf("invalid --date %q: want today or YYYY-MM-DD", s))
 	}
 	y, m, d := now.Date()
 	if day.Before(time.Date(y, m, d, 0, 0, 0, 0, time.Local)) {

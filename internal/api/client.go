@@ -160,7 +160,7 @@ func (c *Client) Login(ctx context.Context) error {
 		return err
 	}
 	if env.Code != 0 {
-		return authErrorf("verifyIdentity failed: %s", env.Message)
+		return authErrorf("verifyIdentity failed: %s", env.Text())
 	}
 	var v verifyIdentityData
 	_ = json.Unmarshal(env.Data, &v)
@@ -178,7 +178,7 @@ func (c *Client) Login(ctx context.Context) error {
 		return err
 	}
 	if env.Code != 0 {
-		return authErrorf("Login failed: %s", env.Message)
+		return authErrorf("Login failed: %s", env.Text())
 	}
 	var d byPassData
 	if err := json.Unmarshal(env.Data, &d); err != nil {

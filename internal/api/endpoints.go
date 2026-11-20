@@ -77,14 +77,12 @@ const (
 	// Auto probes the program namespace first, then course, then free. It is the
 	// default for `session <id>` when the session type is unknown.
 	Auto DispatchMode = iota
-	// FreeFirst probes free first, then course, then program. Used for every list
-	// type except 5 and 6, so the (rare) trainingId collision with a program of the
+	// FreeFirst probes free first, then course, then program. Used when the list
+	// says the session is type 1, so the (rare) trainingId collision with a program of the
 	// same id is sidestepped — the free session is found before program is queried.
-	// Type 2 lands here because it answers on either namespace: some guided type 2
-	// sessions are served by freeTraining, others by courseTrainingInfo.
 	FreeFirst
 	// CourseFirst probes course first, then program, then free. Used when the list
-	// says the session is type 6 (official multi-week courses).
+	// says the session is type 2 or 6 (official courses).
 	CourseFirst
 	// ProgramOnly consults only the program namespace and never falls back; it
 	// backs the --program override for an id valid in multiple namespaces.
@@ -98,15 +96,15 @@ const (
 )
 
 // modeForType picks a dispatch mode from the list's numeric session type. Type 5
-// is program-served (cttTrainingInfo); type 6 is course-served
-// (courseTrainingInfo); every other type (1 freestyle, 2 guided, 7 guided cardio,
-// and unknowns) probes free first. Type 2 has been observed on both the free and
-// the course namespace, and the course fallback catches the latter.
+// is program-served (cttTrainingInfo); types 2 and 6 are official courses
+// (courseTrainingInfo); and other types (1 freestyle, 7 guided cardio, and
+// unknowns) are free-served (freeTraining). Either way the fallback still catches
+// a misclassification.
 func modeForType(sessionType int) DispatchMode {
 	switch sessionType {
 	case 5:
 		return Auto // program-first, course/free fallback
-	case 6:
+	case 2, 6:
 		return CourseFirst // course-first, program/free fallback
 	default:
 		return FreeFirst // free-first, course/program fallback

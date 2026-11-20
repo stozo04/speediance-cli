@@ -173,11 +173,11 @@ func TestSessionDetailIsVerbatimPassthrough(t *testing.T) {
 	}
 }
 
-// TestKindForType pins the digest type→kind mapping: 5 is program, 6 is course,
-// every other positive type (1 freestyle, 2 guided program, 7 guided cardio like
+// TestKindForType pins the digest type→kind mapping: 5 is program, 2 and 6 are
+// official courses, every other positive type (1 freestyle, 7 guided cardio like
 // Aerobic Rowing) is the free namespace, and 0/absent is "".
 func TestKindForType(t *testing.T) {
-	cases := map[int]string{5: "program", 2: "free", 6: "course", 1: "free", 7: "free", 0: "", -1: ""}
+	cases := map[int]string{5: "program", 2: "course", 6: "course", 1: "free", 7: "free", 0: "", -1: ""}
 	for typ, want := range cases {
 		if got := workout.KindForType(typ); got != want {
 			t.Errorf("KindForType(%d) = %q, want %q", typ, got, want)

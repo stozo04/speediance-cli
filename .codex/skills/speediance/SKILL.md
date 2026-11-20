@@ -144,10 +144,7 @@ and returns each one fully resolved, as an array of the same `{training_id, kind
 info, detail}` shape that `session` emits. (`kind` is `"program"`, `"course"`,
 `"free"`, or `""`.)
 
-Sample `workouts --json` output (a digest for picking; `kind` lets you filter). The
-digest's `kind` comes from the session type, so a type 2 session served by the
-course namespace still shows `"free"` here; `session`/`today` report the namespace
-that actually answered:
+Sample `workouts --json` output (a digest for picking; `kind` lets you filter):
 
 ```json
 [

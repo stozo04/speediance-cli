@@ -534,9 +534,8 @@ func TestSessionFaithfulPassthroughJSON(t *testing.T) {
 
 // dispatchServer models the live namespace topology: program id 100 (type 5) and
 // free id 200 (type 1, rowing) both dated 2026-06-18, plus collision id 300 that
-// is a valid — but DIFFERENT — session in multiple namespaces. Type 2 answers on
-// either namespace: id 500 is a course-served type 2 and id 700 a free-served one.
-// Id 600 is a type 6 multi-week course. Detail endpoints are keyed by id;
+// is a valid — but DIFFERENT — session in multiple namespaces, plus official courses
+// id 500 (type 2) and id 600 (type 6). Detail endpoints are keyed by id;
 // unknown ids get code 20 (info) or [] (detail), matching the API.
 func dispatchServer(t *testing.T) *httptest.Server {
 	t.Helper()
@@ -580,8 +579,7 @@ func dispatchServer(t *testing.T) *httptest.Server {
 				{"trainingId":200,"id":901,"title":"Free Lift","type":1,"startTimestamp":%d,"trainingTime":904,"calorie":77,"totalCapacity":0.0},
 				{"trainingId":400,"id":902,"title":"Aerobic Rowing","type":7,"startTimestamp":%d,"trainingTime":1484,"calorie":250,"totalCapacity":0.0},
 				{"trainingId":500,"id":903,"title":"Killer Calves","type":2,"startTimestamp":%d,"trainingTime":4200,"calorie":636,"totalCapacity":5802.0},
-				{"trainingId":600,"id":904,"title":"84-Day Transformation: Chest","type":6,"startTimestamp":%d,"trainingTime":3000,"calorie":400,"totalCapacity":4810.0},
-				{"trainingId":700,"id":905,"title":"Ultimate Sculpt & Burn","type":2,"startTimestamp":%d,"trainingTime":2400,"calorie":300,"totalCapacity":3100.0}]}`, ts, ts, ts, ts, ts, ts)
+				{"trainingId":600,"id":904,"title":"84-Day Transformation: Chest","type":6,"startTimestamp":%d,"trainingTime":3000,"calorie":400,"totalCapacity":4810.0}]}`, ts, ts, ts, ts, ts)
 		case strings.Contains(p, "cttTrainingInfoDetail"):
 			if in(id, "100", "300") {
 				_, _ = w.Write([]byte(programDetail))
@@ -616,7 +614,7 @@ func dispatchServer(t *testing.T) *httptest.Server {
 			switch {
 			case id == "400":
 				_, _ = w.Write([]byte(rowingInfo))
-			case in(id, "200", "300", "700"):
+			case in(id, "200", "300"):
 				_, _ = w.Write([]byte(freeInfo(id)))
 			default:
 				_, _ = w.Write([]byte(`{"code":20,"message":"no free"}`))
@@ -672,8 +670,8 @@ func TestTodayResolvesEverySessionType(t *testing.T) {
 	if err := json.Unmarshal([]byte(out), &arr); err != nil {
 		t.Fatalf("bad json: %v\n%s", err, out)
 	}
-	if len(arr) != 6 {
-		t.Fatalf("today returned %d sessions, want 6\n%s", len(arr), out)
+	if len(arr) != 5 {
+		t.Fatalf("today returned %d sessions, want 5\n%s", len(arr), out)
 	}
 	byID := map[int]sessionDoc{}
 	for _, s := range arr {
@@ -685,20 +683,15 @@ func TestTodayResolvesEverySessionType(t *testing.T) {
 	if byID[200].Kind != "free" {
 		t.Errorf("session 200 kind = %q, want free", byID[200].Kind)
 	}
-	// A course-served type 2 is probed free-first, then found on the course namespace.
+	// Official courses (type 2 and type 6) auto-resolve to the course namespace.
 	if byID[500].Kind != "course" {
 		t.Errorf("session 500 (Killer Calves) kind = %q, want course", byID[500].Kind)
 	}
 	if !strings.Contains(string(byID[500].Detail), `"Dynamic Side Lunge"`) {
 		t.Errorf("session 500 detail missing the course exercise data:\n%s", byID[500].Detail)
 	}
-	// A type 6 multi-week course resolves course-first.
 	if byID[600].Kind != "course" {
 		t.Errorf("session 600 (84-Day Transformation) kind = %q, want course", byID[600].Kind)
-	}
-	// A free-served type 2 stays on the free namespace.
-	if byID[700].Kind != "free" {
-		t.Errorf("session 700 (Ultimate Sculpt & Burn) kind = %q, want free", byID[700].Kind)
 	}
 	// Guided rowing (type 7) auto-resolves to the free namespace WITH a populated
 	// detail — so a single `today` call delivers its per-interval data too.

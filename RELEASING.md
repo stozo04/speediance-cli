@@ -85,6 +85,8 @@ every merge — merge freely, let `main` accumulate, then release a meaningful u
 | `git push origin vX.Y.Z` (a tag) | **Release** (`release.yml` → GoReleaser) | GitHub Release w/ 6 binaries + `checksums.txt` |
 | Push / merge to `main` | **CI** (`ci.yml`) | build & test + lint (no release!) |
 | Push / merge to `main` **that changes `SKILL.md`** | **Publish to ClawHub** | Skill republished to ClawHub |
+| Run **Deploy to ClawHub (from branch)** by hand | `deploy-clawhub-from-branch.yml` | Branch scanned on a throwaway copy, then deleted |
+| Monday 06:17 UTC | **Sweep ClawHub scan copies** | Leftover `speediance-scan-*` copies deleted |
 | Open / update a PR | **CI** | build & test + lint |
 
 Merging PRs **never** creates a release or bumps the version. The version lives in the
@@ -195,6 +197,19 @@ end up with two different "v1.0.1"s, which is the thing versioning exists to pre
   may complain.
 - **ClawHub** publishes automatically on a `SKILL.md` change to `main`; you can also run
   it manually via the **"Publish to ClawHub"** Actions workflow (`workflow_dispatch`).
+  ClawHub hides a new version until its security scans finish (about 10 minutes), and the CLI
+  picks the next version from the latest public one, so two publishes inside that window collide
+  with `Version X already exists`. `scripts/publish-clawhub.sh`, which both ClawHub publish
+  workflows call, retries as the next patch version (up to five attempts) and fails on any other error.
+- **Scanning a branch without merging:** run **"Deploy to ClawHub (from branch)"** on the branch
+  with `target=scan-copy`. It publishes to `speediance-scan-<run id>-<attempt>`, waits for the scan,
+  puts the verdict in the run summary and the full report in the `clawhub-scan-report` artifact,
+  then deletes the copy (it keeps the copy if the report could not be saved). `target=live`
+  republishes the real `speediance` listing from that branch. The weekly **"Sweep ClawHub scan
+  copies"** workflow deletes any copy a finished run left behind. Both use
+  `scripts/clawhub-scan-copies.sh`, which refuses to delete anything outside the `speediance-scan-`
+  prefix. Never publish scan tests by hand to other scratch slugs: nothing cleans those up.
+  `make test-scripts` tests both scripts against a fake `clawhub`.
 
 ---
 

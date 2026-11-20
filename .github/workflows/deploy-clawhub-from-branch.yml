@@ -1,0 +1,99 @@
+name: Deploy to ClawHub (from branch)
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: >-
+          scan-copy runs the scan on a throwaway copy and deletes it afterwards;
+          live overwrites the real speediance listing.
+        type: choice
+        options: [scan-copy, live]
+        default: scan-copy
+
+permissions:
+  contents: read
+
+concurrency:
+  group: clawhub-branch-deploy-${{ inputs.target == 'live' && 'live' || github.run_id }}
+  cancel-in-progress: true
+
+env:
+  SLUG: ${{ inputs.target == 'live' && 'speediance' || format('speediance-scan-{0}-{1}', github.run_id, github.run_attempt) }}
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Summarize what will be published
+        # Branch names pass through env so they can't inject shell.
+        env:
+          REF: ${{ github.ref_name }}
+          SHA: ${{ github.sha }}
+          TARGET: ${{ inputs.target }}
+          ACTOR: ${{ github.actor }}
+        run: |
+          {
+            echo "## ClawHub branch deploy"
+            echo ""
+            echo "| Field | Value |"
+            echo "| --- | --- |"
+            echo "| Branch / ref | \`$REF\` |"
+            echo "| Commit | \`$SHA\` |"
+            echo "| Target | \`$TARGET\` |"
+            echo "| Slug | \`$SLUG\` |"
+            echo "| Triggered by | @$ACTOR |"
+            echo ""
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "22"
+
+      - name: Check what clawhub would publish
+        run: make check-clawhub
+
+      - name: Install clawhub CLI
+        run: npm install -g clawhub@0.26.0
+
+      - name: Authenticate clawhub
+        run: clawhub login --token "$CLAWHUB_TOKEN"
+        env:
+          CLAWHUB_TOKEN: ${{ secrets.CLAWHUB_TOKEN }}
+
+      - name: Publish skill
+        id: publish
+        run: |
+          set -o pipefail
+          scripts/publish-clawhub.sh "$SLUG" stozo04 "Speediance Gym Monster" | tee publish-output.txt
+          version=$(scripts/clawhub-scan-copies.sh version "$SLUG" < publish-output.txt)
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Wait for the ClawHub scan
+        env:
+          VERSION: ${{ steps.publish.outputs.version }}
+        run: |
+          set -o pipefail
+          echo "### ClawHub scan" >> "$GITHUB_STEP_SUMMARY"
+          scripts/clawhub-scan-copies.sh await "$SLUG" "$VERSION" | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - name: Download the scan report
+        if: ${{ !cancelled() && steps.publish.outputs.version != '' }}
+        env:
+          VERSION: ${{ steps.publish.outputs.version }}
+        run: clawhub scan download "$SLUG" --version "$VERSION" -o clawhub-scan-report.zip
+
+      - name: Keep the scan report
+        id: keep-report
+        if: ${{ !cancelled() && hashFiles('clawhub-scan-report.zip') != '' }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: clawhub-scan-report
+          path: clawhub-scan-report.zip
+
+      - name: Delete the scan copy
+        if: ${{ always() && inputs.target == 'scan-copy' && (cancelled() || steps.publish.outputs.version == '' || steps.keep-report.outcome == 'success') }}
+        run: scripts/clawhub-scan-copies.sh delete "$SLUG"

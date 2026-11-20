@@ -27,6 +27,8 @@ jobs:
           go-version: stable
       - name: Check agent instructions
         run: make check-agents
+      - name: Test ClawHub scripts
+        run: make test-scripts
       - name: Build
         run: go build ./...
       - name: Test (race)

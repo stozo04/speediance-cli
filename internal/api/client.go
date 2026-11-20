@@ -129,14 +129,15 @@ func hostOf(base string) string {
 // Android app / Python client send them (GOAL.md §8). Token and App_user_id are
 // included only when present.
 func (c *Client) setHeaders(req *http.Request) {
-	ts := strconv.FormatInt(c.now().UnixMilli(), 10)
+	now := c.now()
+	ts := strconv.FormatInt(now.UnixMilli(), 10)
 	req.Host = c.host // Host header comes from req.Host, not req.Header.
 	req.Header = http.Header{
 		"User-Agent":      {"Dart/3.9 (dart:io)"},
 		"Content-Type":    {"application/json"},
 		"Timestamp":       {ts},
-		"Utc_offset":      {"+0000"},
-		"Timezone":        {"GMT"},
+		"Utc_offset":      {now.Format("-0700")},
+		"Timezone":        {timezoneHeader(now)},
 		"Versioncode":     {appVersionCode},
 		"Accept-Language": {"en"},
 		"App_type":        {"SOFTWARE"},
@@ -148,6 +149,14 @@ func (c *Client) setHeaders(req *http.Request) {
 	if c.userID != "" {
 		req.Header["App_user_id"] = []string{c.userID}
 	}
+}
+
+// timezoneHeader names now's UTC offset as a GMT±hh:mm zone ID. The server judges
+// "today" (e.g. whether a calendar day is in the past) in this zone, and it only
+// parses GMT±hh:mm or IANA names: anything else, such as "UTC-06:00" or "CST",
+// silently falls back to GMT.
+func timezoneHeader(now time.Time) string {
+	return "GMT" + now.Format("-07:00")
 }
 
 // Login performs the two-step email/password login (GOAL.md §8) and stores the

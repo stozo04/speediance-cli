@@ -121,3 +121,17 @@ The sole exception is the exercise library catalog's `recommendedWeight`, which 
 In observed template creation payloads, each exercise either uses an RM-based preset
 (`templatePresetId != -1`) or custom weights (`templatePresetId: -1`). With an RM-based preset,
 the target percentage is stored in `counterweight2`, while `weights` holds 0.
+
+## 9. The `Timezone` Header Decides What "Today" Is
+
+The server judges calendar days in the zone named by the `Timezone` request header, not by
+`Utc_offset` or its own clock. Live probes against `POST /app/templateReservation` showed:
+- **Parsed:** `GMT±hh:mm` (minute offsets too, e.g. `GMT+13:45`), `Etc/GMT±N`, and IANA names
+  such as `Pacific/Kiritimati`.
+- **Silently ignored (treated as GMT):** `UTC±hh:mm`, a bare `±hh:mm`, and abbreviations such as `LINT`.
+  An unparsed zone returns no error, so a wrong format only shows up as a wrong day.
+- **Reservation errors:** a day before "today" in that zone returns `code 10` ("Parameter error.");
+  reserving the same template on a day it is already reserved returns `code 14` ("Data already exists.").
+
+The CLI therefore sends the caller's offset at request time as `GMT±hh:mm`. A hard-coded `GMT`
+made a US evening's local today look like yesterday, so reservations for today were rejected.

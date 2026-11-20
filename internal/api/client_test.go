@@ -19,7 +19,7 @@ func testClient(baseURL string, tok auth.Token) *Client {
 		Email:    "user@example.com",
 		Password: "secret",
 		Token:    tok,
-		Now:      func() time.Time { return time.Unix(1_700_000_000, 0) },
+		Now:      func() time.Time { return time.Unix(1_700_000_000, 0).UTC() },
 	})
 }
 
@@ -133,7 +133,7 @@ func TestFrozenHeaders(t *testing.T) {
 		"User-Agent":      "Dart/3.9 (dart:io)",
 		"Content-Type":    "application/json",
 		"Utc_offset":      "+0000",
-		"Timezone":        "GMT",
+		"Timezone":        "GMT+00:00",
 		"Versioncode":     "40400",
 		"Accept-Language": "en",
 		"App_type":        "SOFTWARE",
@@ -149,6 +149,42 @@ func TestFrozenHeaders(t *testing.T) {
 	// Timestamp is epoch ms (injected clock => 1700000000000).
 	if got.Get("Timestamp") != "1700000000000" {
 		t.Errorf("Timestamp = %q, want 1700000000000", got.Get("Timestamp"))
+	}
+}
+
+// TestTimezoneHeadersFollowLocalOffset: the server decides which calendar day is
+// "today" from the Timezone header, so it must carry the caller's real offset.
+// With a hard-coded GMT, a US evening's local today was already yesterday in GMT
+// and the server rejected the reservation as a past date.
+func TestTimezoneHeadersFollowLocalOffset(t *testing.T) {
+	chicago := time.FixedZone("CST", -6*60*60)
+	kolkata := time.FixedZone("IST", 5*60*60+30*60)
+	cases := []struct {
+		now              time.Time
+		offset, timezone string
+	}{
+		{time.Date(2026, 11, 20, 20, 0, 0, 0, chicago), "-0600", "GMT-06:00"},
+		{time.Date(2026, 11, 20, 9, 0, 0, 0, kolkata), "+0530", "GMT+05:30"},
+		{time.Date(2026, 11, 20, 9, 0, 0, 0, time.UTC), "+0000", "GMT+00:00"},
+	}
+	for _, tc := range cases {
+		var got http.Header
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			got = r.Header.Clone()
+			_, _ = w.Write([]byte(`{"code":0,"data":{}}`))
+		}))
+		c := testClient(srv.URL, auth.Token{Token: "T", UserID: "1"})
+		c.now = func() time.Time { return tc.now }
+		if _, err := c.GetJSON(context.Background(), "/x"); err != nil {
+			t.Fatal(err)
+		}
+		srv.Close()
+		if g := got.Get("Utc_offset"); g != tc.offset {
+			t.Errorf("%v: Utc_offset = %q, want %q", tc.now, g, tc.offset)
+		}
+		if g := got.Get("Timezone"); g != tc.timezone {
+			t.Errorf("%v: Timezone = %q, want %q", tc.now, g, tc.timezone)
+		}
 	}
 }
 

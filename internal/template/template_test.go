@@ -210,7 +210,7 @@ func TestFetchLibraryDecodeErrors(t *testing.T) {
 }
 
 func TestFetchLibraryEmptyData(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		// Envelope with empty data
 		_, _ = w.Write([]byte(`{"code":0}`))

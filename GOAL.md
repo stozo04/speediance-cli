@@ -257,15 +257,15 @@ EU     → https://euapi.speediance.com/api
 ```
 Unknown region falls back to Global (as Python does). `Host` header derived from the base URL host.
 
-### Headers (frozen — must match the Android app byte-for-byte)
+### Headers (frozen — must match the Android app byte-for-byte, except the time zone pair)
 
 ```
 Host: <derived from base>
 User-Agent: Dart/3.9 (dart:io)
 Content-Type: application/json
 Timestamp: <current epoch milliseconds, as string>
-Utc_offset: +0000
-Timezone: GMT
+Utc_offset: <local UTC offset now, e.g. -0600>
+Timezone: GMT<local offset now, e.g. GMT-06:00>
 Versioncode: 40400
 Accept-Language: en
 App_type: SOFTWARE
@@ -273,6 +273,8 @@ Mobiledevices: {"brand":"google","device":"emulator64","deviceType":"sdk_gphone6
 Token: <token>            # only when present
 App_user_id: <user_id>    # only when present
 ```
+The time zone pair carries the caller's real offset at request time, because the server
+judges "today" in the `Timezone` zone (see `docs/API_NOTES.md` §9).
 `User-Agent` here is the spoofed Dart string — **do not** replace it with `speediance-cli/<ver>`.
 (Our own version string belongs only in `--version`/logs.)
 

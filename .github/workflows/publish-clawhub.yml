@@ -9,6 +9,7 @@ on:
       - config.example.json
       - docs/MACHINE_CONTRACT.md
       - .clawhubignore
+      - .gitignore
   workflow_dispatch:
 
 permissions:

@@ -15,8 +15,8 @@ permissions:
   contents: read
 
 concurrency:
-  group: clawhub-branch-deploy-${{ inputs.target == 'live' && 'live' || github.run_id }}
-  cancel-in-progress: true
+  group: ${{ inputs.target == 'live' && 'clawhub-publish-live' || format('clawhub-scan-copy-{0}', github.run_id) }}
+  cancel-in-progress: false
 
 env:
   SLUG: ${{ inputs.target == 'live' && 'speediance' || format('speediance-scan-{0}-{1}', github.run_id, github.run_attempt) }}

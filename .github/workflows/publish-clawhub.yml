@@ -13,6 +13,7 @@ permissions:
 concurrency:
   group: clawhub-publish-live
   cancel-in-progress: false
+  queue: max
 
 jobs:
   publish:

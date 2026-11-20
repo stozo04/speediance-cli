@@ -68,8 +68,8 @@ jobs:
         id: publish
         run: |
           set -o pipefail
-          scripts/publish-clawhub.sh "$SLUG" stozo04 "Speediance Gym Monster" | tee publish-output.txt
-          version=$(scripts/clawhub-scan-copies.sh version "$SLUG" < publish-output.txt)
+          scripts/publish-clawhub.sh "$SLUG" stozo04 "Speediance Gym Monster" | tee "$RUNNER_TEMP/publish-output.txt"
+          version=$(scripts/clawhub-scan-copies.sh version "$SLUG" < "$RUNNER_TEMP/publish-output.txt")
           echo "version=$version" >> "$GITHUB_OUTPUT"
 
       - name: Wait for the ClawHub scan

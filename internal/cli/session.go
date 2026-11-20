@@ -12,11 +12,11 @@ import (
 	"github.com/stozo04/speediance-cli/v2/internal/workout"
 )
 
-// newSessionCmd implements `session <training_id> [--json] [--free|--program]`
+// newSessionCmd implements `session <training_id> [--json] [--free|--program|--course]`
 // (GOAL.md §9.3). The session is a faithful, complete passthrough AND autonomous:
 // given only an id it figures out what the session was — a program/Coach session,
-// a free weight lift, or a rowing/ski free session — by probing the program
-// namespace first and falling back to the free namespace, then emits the verbatim
+// an official course, a free weight lift, or a rowing/ski free session — by
+// probing the program, course and free namespaces in turn, then emits the verbatim
 // payloads under a uniform {training_id, kind, info, detail} shape. The agent does
 // not need to know the type. --free / --program / --course are strict overrides for the rare
 // case where a trainingId is valid in multiple namespaces (it identifies different

@@ -141,10 +141,13 @@ after they confirm they want it fetched. A passing mention of exercising is not 
 request to read their account: ask first. You do **not** need to know whether the
 session was a program, free weights, or a rowing/ski session. The tool finds the day's session(s)
 and returns each one fully resolved, as an array of the same `{training_id, kind,
-info, detail}` shape that `session` emits. (`kind` is `"program"`, `"free"`, or
-`""`.)
+info, detail}` shape that `session` emits. (`kind` is `"program"`, `"course"`,
+`"free"`, or `""`.)
 
-Sample `workouts --json` output (a digest for picking; `kind` lets you filter):
+Sample `workouts --json` output (a digest for picking; `kind` lets you filter). The
+digest's `kind` comes from the session type, so a type 2 session served by the
+course namespace still shows `"free"` here; `session`/`today` report the namespace
+that actually answered:
 
 ```json
 [

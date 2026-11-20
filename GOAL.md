@@ -400,7 +400,8 @@ all removed.
   `POST /app/templateReservation` `{"status":1,"deviceType":N,"thatDay":"YYYY-MM-DD","templateCode":"<data>"}`;
   success is `data: true`. `--json` prints `{"template_code","scheduled_date"}`; `--dry-run --json`
   prints `{"payload","scheduled_date"}`. If the reservation fails the template already exists, so
-  exit 3 (`--json` still prints `template_code` with `scheduled_date: null`).
+  exit 3 (`--json` still prints `template_code` with `scheduled_date: null`; if the create
+  response had no readable code, stdout stays empty and the error carries the raw data).
 
 ### 9.6 `sync [--date D] [--days N] [--weeks-dir DIR]`  (default `--date today`, `--days 3`)
 See [§11](#11-sync-command--fuzzy-matching). Requires a weeks dir; no `--json`.

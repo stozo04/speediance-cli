@@ -4,9 +4,9 @@ description: >
   Read completed workouts (summaries and full per-set detail), browse and export the
   exercise catalog, and push custom training programs to your Speediance (Gym Monster)
   smart cable machine via its cloud API, optionally reserving one on its calendar.
-  Authenticates with your account credentials,
-  caches a session token in your OS user-cache directory (override with an exported SPEEDIANCE_TOKEN_CACHE),
-  and makes outbound HTTPS requests to the Speediance cloud API. Reads and emits structured
+  Authenticates with your account credentials, caches a session token in your OS user-cache
+  directory (override with an exported SPEEDIANCE_TOKEN_CACHE), and makes outbound HTTPS
+  requests to the Speediance cloud API. Reads and emits structured
   data. It writes local files only in these cases: the session token cache; config.json when you
   run `config set`, which stores the value you give it (including a password) as plain JSON with
   owner-only permissions; and the exercise catalog that the `library` command saves (default
@@ -279,8 +279,9 @@ speediance-cli push plan.json --date today  # create it and reserve it on the ca
 
 `push --json` prints the server's create response (the template code as a JSON string).
 With `--date` it prints `{"template_code": "…", "scheduled_date": "YYYY-MM-DD"}` instead,
-and `--dry-run --date` prints `{"payload": …, "scheduled_date": "YYYY-MM-DD"}`. `--date`
-only accepts today or later.
+and `--dry-run --date` prints `{"payload": …, "scheduled_date": "YYYY-MM-DD"}`. If the
+reservation fails (exit 3), `--date --json` still prints the `template_code` with
+`scheduled_date: null`. `--date` only accepts today or later.
 
 **Plan JSON format:**
 

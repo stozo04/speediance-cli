@@ -124,8 +124,9 @@ speediance-cli push plan.json --date 2026-11-25  # create it and reserve it on t
 
 `push --json` prints the server's create response (the template code as a JSON string).
 With `--date` it prints `{"template_code": "…", "scheduled_date": "YYYY-MM-DD"}` instead,
-and `--dry-run --date` prints `{"payload": …, "scheduled_date": "YYYY-MM-DD"}`. `--date`
-only accepts today or later.
+and `--dry-run --date` prints `{"payload": …, "scheduled_date": "YYYY-MM-DD"}`. If the
+reservation fails (exit 3), `--date --json` still prints the `template_code` with
+`scheduled_date: null`. `--date` only accepts today or later.
 
 ### Plan JSON
 

@@ -208,6 +208,11 @@ func applyEnv(cfg *Config, dotenv map[string]string) {
 	if v, ok := envLayer(dotenv, EnvDeviceType); ok {
 		if n, err := strconv.Atoi(v); err == nil {
 			cfg.DeviceType = n
+		} else {
+			cfg.Warnings = append(cfg.Warnings, fmt.Sprintf(
+				"invalid %s=%q (must be an integer); using device_type=%d",
+				EnvDeviceType, v, cfg.DeviceType,
+			))
 		}
 	}
 }

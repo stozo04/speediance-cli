@@ -24,6 +24,10 @@ func baseURLFor(region string) string {
 // from the Android app (GOAL.md §8). Declared once so it can't drift.
 const mobileDevices = `{"brand":"google","device":"emulator64","deviceType":"sdk_gphone64","os":"","os_version":"31","manufacturer":"Google"}`
 
+// appVersionCode is the app release the server gates content on. Below 40400
+// (app 4.4.0) the library silently omits Vita exercises with code 0.
+const appVersionCode = "40400"
+
 // Envelope is the standard API response wrapper: {code, message, data}. data is
 // left raw because its shape depends on the endpoint; callers decode it into the
 // appropriate type. Responses are decoded loosely (no DisallowUnknownFields) so

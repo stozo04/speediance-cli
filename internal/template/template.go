@@ -48,11 +48,18 @@ type PlanExercise struct {
 
 // PlanSet is one set. Mode/Rest are pointers so absent keys take their non-zero
 // defaults (mode 1, rest 60) exactly as the Python `s.get(key, default)` does.
+//
+// Seconds, when present, makes the set timed instead of rep-counted (e.g. a
+// Nordic curl where the machine only holds the legs and the cable never moves).
+// It is encoded the way the Speediance app stores a timed set: the duration goes
+// in setsAndReps and the set's selectCompletionMethod is "0" (rep sets use "1").
+// Reps is ignored for a timed set.
 type PlanSet struct {
-	Reps   int     `json:"reps"`
-	Weight float64 `json:"weight"`
-	Mode   *int    `json:"mode"`
-	Rest   *int    `json:"rest"`
+	Reps    int     `json:"reps"`
+	Weight  float64 `json:"weight"`
+	Mode    *int    `json:"mode"`
+	Rest    *int    `json:"rest"`
+	Seconds *int    `json:"seconds,omitempty"`
 }
 
 // LoadPlan reads and validates a plan file. It must contain "name" and
@@ -164,7 +171,16 @@ func BuildPayload(ctx context.Context, client *api.Client, name string, exercise
 				rest = *s.Rest
 			}
 
-			reps = append(reps, strconv.Itoa(s.Reps))
+			// A timed set carries its duration where a rep set carries its reps.
+			count, completionFlag := s.Reps, "1"
+			if s.Seconds != nil {
+				if *s.Seconds <= 0 {
+					return nil, fmt.Errorf("exercise %d set %d: seconds must be positive, got %d", groupID, i+1, *s.Seconds)
+				}
+				count, completionFlag = *s.Seconds, "0"
+			}
+
+			reps = append(reps, strconv.Itoa(count))
 			breaks = append(breaks, strconv.Itoa(rest))
 			modes = append(modes, strconv.Itoa(mode))
 			level = append(level, "0")
@@ -179,11 +195,17 @@ func BuildPayload(ctx context.Context, client *api.Client, name string, exercise
 			}
 			completionMethod = append(completionMethod, "1") // rep-based
 			countType = append(countType, "1")
-			completion = append(completion, "1")
+			completion = append(completion, completionFlag)
 
 			apiWeight := s.Weight * kgToAPI
 			weights = append(weights, strconv.FormatFloat(apiWeight, 'f', 1, 64))
-			setCapacity += float64(s.Reps) * apiWeight
+			if s.Seconds != nil {
+				// The app counts a timed set as one rep per 3 s: an app-built
+				// 4 x 60 s template at 220 stores capacity 17600 = 4*220*60/3.
+				setCapacity += float64(*s.Seconds) / 3 * apiWeight
+			} else {
+				setCapacity += float64(s.Reps) * apiWeight
+			}
 		}
 
 		totalCapacity += setCapacity

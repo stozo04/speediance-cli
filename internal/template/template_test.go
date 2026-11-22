@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"math"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -150,6 +151,76 @@ func TestBuildPayloadUnits(t *testing.T) {
 	}
 	if a0.LeftRight != "0,0" { // id 304 is even => bilateral
 		t.Errorf("leftRight=%q want 0,0", a0.LeftRight)
+	}
+}
+
+// TestBuildPayloadTimedSet pins the timed-set encoding against what the
+// Speediance app stores for a timed exercise (an app-built Nordic curl template:
+// setsAndReps "60,60,60,60", selectCompletionMethod "0,0,0,0", weights 220,
+// capacity 17600 = 4*220*60/3). Rep sets in the same exercise keep the "1" flag.
+func TestBuildPayloadTimedSet(t *testing.T) {
+	srv := fakeServer(t)
+	defer srv.Close()
+
+	mode, rest, secs := 1, 5, 60
+	plan := []template.PlanExercise{{
+		ID: "304", // even => bilateral in the fake server
+		Sets: []template.PlanSet{
+			{Weight: 100, Mode: &mode, Rest: &rest, Seconds: &secs}, // 100 kg -> 220.0
+			{Reps: 10, Weight: 100, Mode: &mode, Rest: &rest},
+		},
+	}}
+	client := newTestClient(t, srv.URL)
+	payload, err := template.BuildPayload(context.Background(), client, "Timed", plan, 1)
+	if err != nil {
+		t.Fatalf("build payload: %v", err)
+	}
+	a0 := payload.ActionLibraryList[0]
+	if a0.SetsAndReps != "60,10" {
+		t.Errorf("setsAndReps=%q want 60,10 (seconds for the timed set)", a0.SetsAndReps)
+	}
+	if a0.SelectCompletionMethod != "0,1" {
+		t.Errorf("selectCompletionMethod=%q want 0,1", a0.SelectCompletionMethod)
+	}
+	if a0.Weights != "220.0,220.0" {
+		t.Errorf("weights=%q want 220.0,220.0", a0.Weights)
+	}
+	// 60 s at 220 counts as 20 reps (4400) + 10 reps at 220 (2200). kg*2.2 is not
+	// exact in binary floating point (same as for rep sets), so compare with a tolerance.
+	if got := float64(a0.Capacity); math.Abs(got-6600) > 1e-6 {
+		t.Errorf("capacity=%v want 6600", got)
+	}
+}
+
+func TestBuildPayloadRejectsNonPositiveSeconds(t *testing.T) {
+	srv := fakeServer(t)
+	defer srv.Close()
+
+	zero := 0
+	plan := []template.PlanExercise{{ID: "304", Sets: []template.PlanSet{{Weight: 10, Seconds: &zero}}}}
+	client := newTestClient(t, srv.URL)
+	if _, err := template.BuildPayload(context.Background(), client, "Bad", plan, 1); err == nil {
+		t.Error("expected an error for seconds <= 0")
+	}
+}
+
+func TestLoadPlanParsesSeconds(t *testing.T) {
+	dir := t.TempDir()
+	p := filepath.Join(dir, "timed.json")
+	body := `{"name":"t","exercises":[{"id":1,"sets":[{"seconds":60,"weight":100},{"reps":8,"weight":50}]}]}`
+	if err := os.WriteFile(p, []byte(body), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	plan, err := template.LoadPlan(p)
+	if err != nil {
+		t.Fatalf("load plan: %v", err)
+	}
+	sets := plan.Exercises[0].Sets
+	if sets[0].Seconds == nil || *sets[0].Seconds != 60 {
+		t.Errorf("first set seconds=%v want 60", sets[0].Seconds)
+	}
+	if sets[1].Seconds != nil {
+		t.Errorf("second set seconds=%v want nil (rep set)", *sets[1].Seconds)
 	}
 }
 

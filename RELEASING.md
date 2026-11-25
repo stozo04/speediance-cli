@@ -4,32 +4,53 @@ How to cut a release for `speediance-cli`, when to do it, and what happens under
 hood. Written for this exact repo's setup (GoReleaser + GitHub Actions + ClawHub).
 
 > **The one rule that explains everything:**
-> **A release is triggered by pushing a git tag (`vX.Y.Z`) — *not* by merging a PR.**
-> Merging code updates `main`. Tagging is the deliberate "publish" button.
+> **A release is cut by merging the open release PR (`chore(main): release X.Y.Z`).**
+> Merging code updates `main`. Merging the release PR is the deliberate "publish" button.
 
 ---
 
 ## TL;DR — cut a release
 
+1. Merge feature and fix PRs into `main` as usual, with Conventional Commit titles.
+2. [release-please](https://github.com/googleapis/release-please-action) keeps one
+   release PR open, titled `chore(main): release X.Y.Z`. Each push to `main` updates its
+   version and notes. CI runs on it like any other PR.
+3. When you want to ship, merge that release PR. The **Release Please** workflow tags
+   `vX.Y.Z`, creates the GitHub Release, and runs GoReleaser in the same run to attach the
+   binaries and write the release notes.
+
 ```bash
-# 1. Get on a clean, up-to-date, GREEN main
-git checkout main
-git pull origin main
-gh run list --branch main --limit 3        # confirm CI is green first
-
-# 2. Tag the new version (annotated) and push the tag
-git tag -a v1.0.1 -m "v1.0.1 — short summary of what changed"
-git push origin v1.0.1                      # <-- THIS fires the release
-
-# 3. Watch it build & publish (~2-3 min: cross-compiles 6 platforms)
-gh run watch
-
-# 4. Verify the published release
-gh release view v1.0.1
+gh pr list --label "autorelease: pending"   # the open release PR
+gh run watch                                  # after merging it (~2-3 min)
+gh release view vX.Y.Z                        # verify the published release
 ```
 
-That's it. The tag push triggers `.github/workflows/release.yml`, which runs
-GoReleaser, builds binaries for all platforms, and posts them as a GitHub Release.
+The version comes from the commits since the last release: `fix:` bumps PATCH, `feat:`
+bumps MINOR, `feat!:` or a `BREAKING CHANGE:` footer bumps MAJOR. Commits like `ci:`,
+`docs:`, `test:` and `chore:` alone don't open a release PR. To force a specific version,
+add a commit to `main` with a `Release-As: X.Y.Z` footer.
+
+The current version lives in `.release-please-manifest.json`; config is in
+`release-please-config.json`. There is still no `CHANGELOG.md` (`skip-changelog`).
+
+**Why GoReleaser runs inside the Release Please workflow:** a tag created with the
+workflow's own `GITHUB_TOKEN` does not start other workflows, so the tag push would never
+fire `release.yml` on its own. The Release Please workflow calls `release.yml` directly
+(`workflow_call`) when a release is created. For the same reason, it starts `ci.yml` on
+the release PR's branch with `workflow_dispatch`, so the required checks report on it.
+
+### Manual fallback — push a tag yourself
+
+Pushing a tag still runs `release.yml` exactly as before:
+
+```bash
+git checkout main && git pull origin main
+git tag -a v1.0.1 -m "v1.0.1 — short summary of what changed"
+git push origin v1.0.1
+```
+
+If you do this, also update `.release-please-manifest.json` to the same version in a PR,
+or release-please will propose a version based on its last release.
 
 ---
 
@@ -51,8 +72,9 @@ Rule of thumb: ask *"would this surprise or break someone already using v1.0.0?"
 A **MAJOR** bump past v1 also renames the Go module: v2.x lives at
 `github.com/stozo04/speediance-cli/v2`, so v3.0.0 needs `/v3` in `go.mod`, every import,
 the `go install` commands and `SKILL.md`'s `metadata.openclaw.install` in the PR **before**
-the tag. Without it the Go proxy rejects the tag ("module path must match major version")
-and `go install …@latest` keeps serving the old major.
+the release PR is merged. A release PR proposing 3.0.0 is the signal to do this first.
+Without it the Go proxy rejects the tag ("module path must match major version") and
+`go install …@latest` keeps serving the old major.
 
 ---
 
@@ -60,7 +82,8 @@ and `go install …@latest` keeps serving the old major.
 
 Release when there are changes on `main` that you want **available as a downloadable
 binary** (for a new machine, another person, or an agent). You do **not** release after
-every merge — merge freely, let `main` accumulate, then release a meaningful unit.
+every merge — merge freely, let the release PR accumulate changes, then merge it when
+there's a meaningful unit.
 
 **Good reasons to release:**
 - 🐛 A bug fix users need now → PATCH
@@ -73,8 +96,8 @@ every merge — merge freely, let `main` accumulate, then release a meaningful u
 - Work-in-progress on `main`
 - Pure internal refactors with zero user-facing change (optional)
 
-**One tag = one release** that bundles *everything currently on `main`*. If you merge
-5 PRs and then tag once, all 5 ride along in that single release. You don't tag per PR.
+**One release PR = one release** that bundles *everything merged since the last one*. If
+you merge 5 PRs and then merge the release PR once, all 5 ride along in that single release.
 
 ---
 
@@ -82,15 +105,17 @@ every merge — merge freely, let `main` accumulate, then release a meaningful u
 
 | You do this… | …this runs | Result |
 |---|---|---|
-| `git push origin vX.Y.Z` (a tag) | **Release** (`release.yml` → GoReleaser) | GitHub Release w/ 6 binaries + `checksums.txt` |
+| Merge the release PR | **Release Please** → `release.yml` (GoReleaser) | Tag `vX.Y.Z` + GitHub Release w/ 6 binaries + `checksums.txt` |
+| Push / merge to `main` | **Release Please** | Release PR opened or updated, and CI started on it |
 | Push / merge to `main` | **CI** (`ci.yml`) | build & test + lint (no release!) |
+| `git push origin vX.Y.Z` (a tag, manual fallback) | **Release** (`release.yml` → GoReleaser) | GitHub Release w/ 6 binaries + `checksums.txt` |
 | Push / merge to `main` **that changes a shipped file** (`SKILL.md`, `SECURITY.md`, `config.example.json`, `docs/MACHINE_CONTRACT.md`), `.clawhubignore` or `.gitignore` | **Publish to ClawHub** | Skill republished to ClawHub |
 | Run **Deploy to ClawHub (from branch)** by hand | `deploy-clawhub-from-branch.yml` | Branch scanned on a throwaway copy, then deleted |
 | Monday 06:17 UTC | **Sweep ClawHub scan copies** | Leftover `speediance-scan-*` copies deleted |
 | Open / update a PR | **CI** | build & test + lint |
 
-Merging PRs **never** creates a release or bumps the version. The version lives in the
-git tag, not in a file — the build stamps it into the binary at release time, so
+Merging an ordinary PR **never** creates a release; only merging the release PR does. The
+binary's version comes from the git tag — the build stamps it in at release time, so
 `speediance-cli version` prints whatever tag it was built from.
 
 ---
@@ -98,8 +123,9 @@ git tag, not in a file — the build stamps it into the binary at release time, 
 ## Release notes & changelog (auto-generated — no `CHANGELOG.md`)
 
 The de-facto changelog is the **GitHub Releases page** — there is intentionally no
-`CHANGELOG.md` to hand-maintain. On every `vX.Y.Z` tag, GoReleaser builds the release body
-**automatically**, with **zero manual step**:
+`CHANGELOG.md` to hand-maintain. The release PR body previews the notes; on every `vX.Y.Z`
+tag, GoReleaser replaces the GitHub Release body (`release.mode: replace`) **automatically**,
+with **zero manual step**:
 
 - **Changelog** — generated from commit subjects since the previous tag, **grouped by
   [Conventional Commit](https://www.conventionalcommits.org) type**: `feat:` → **Features**,
@@ -115,8 +141,8 @@ Release after it posts.)
 **This is why commit subjects matter** — they *are* the release notes:
 
 - Write Conventional Commits (`feat:`, `fix:`, `docs:`, `test:`, `chore:`) so the changelog
-  groups cleanly. A commit with no recognized prefix still ships — it just lands under
-  "Other changes" instead of a tidy section.
+  groups cleanly and release-please picks the right version. A commit with no recognized
+  prefix still ships — it just lands under "Other changes" and doesn't bump the version.
 - **Squash-merge each PR with a clean Conventional-Commit title** so one PR = one changelog
   line (e.g. squashing a PR with a `rev-2…rev-4` commit trail into a single `fix: …`).
 - Want a human highlight on a notable release (a behavior change, a removed command)? Land
@@ -186,6 +212,9 @@ end up with two different "v1.0.1"s, which is the thing versioning exists to pre
 ## Known quirks / gotchas
 
 - **Tags must start with `v`** — the release workflow only triggers on `v*`.
+- **Release PR checks:** if the release PR shows required checks as "Expected — waiting",
+  re-run the latest **Release Please** run on `main`; its last step starts CI on the release
+  branch.
 - **golangci-lint vs. toolchain:** golangci-lint embeds the Go type-checker of the Go
   version it was built with, so the linter must be built with a Go **≥** the toolchain
   it lints under. `ci.yml`'s lint job pins Go `1.26.x` with golangci-lint `v2.12.2`
@@ -220,5 +249,8 @@ end up with two different "v1.0.1"s, which is the thing versioning exists to pre
 ## Prerequisites (one-time)
 
 - `gh` CLI authenticated with push access (`gh auth status`).
+- Repo setting **Settings → Actions → General → Workflow permissions → "Allow GitHub
+  Actions to create and approve pull requests"** must be on, or release-please can't open
+  the release PR.
 - For local dry runs only: Go + `goreleaser` on your PATH.
 - The `CLAWHUB_TOKEN` repo secret must be set (it is) for the ClawHub publish step.

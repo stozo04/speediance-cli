@@ -19,7 +19,6 @@ jobs:
       contents: write
       issues: write
       pull-requests: write
-      actions: write
     outputs:
       release_created: ${{ steps.release.outputs.release_created }}
       tag_name: ${{ steps.release.outputs.tag_name }}
@@ -30,16 +29,6 @@ jobs:
           config-file: .github/release-please-config.json
           manifest-file: .github/.release-please-manifest.json
 
-      - name: Run CI on the release PR
-        if: steps.release.outputs.prs_created == 'true'
-        env:
-          GH_TOKEN: ${{ github.token }}
-          GH_REPO: ${{ github.repository }}
-        run: |
-          gh pr list --label "autorelease: pending" --state open --json headRefName --jq '.[].headRefName' |
-            while read -r branch; do
-              gh workflow run ci.yml --ref "$branch"
-            done
 
   goreleaser:
     needs: release-please

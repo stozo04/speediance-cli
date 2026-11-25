@@ -14,8 +14,9 @@ hood. Written for this exact repo's setup (GoReleaser + GitHub Actions + ClawHub
 1. Merge feature and fix PRs into `main` as usual, with Conventional Commit titles.
 2. [release-please](https://github.com/googleapis/release-please-action) keeps one
    release PR open, titled `chore(main): release X.Y.Z`. Each push to `main` updates its
-   version and notes. CI runs on it like any other PR.
-3. When you want to ship, merge that release PR. The **Release Please** workflow tags
+   version and notes. It only changes `.github/.release-please-manifest.json`.
+3. When you want to ship, merge that release PR as an admin ("Merge without waiting for
+   requirements to be met"). The **Release Please** workflow tags
    `vX.Y.Z`, creates the GitHub Release, and runs GoReleaser in the same run to attach the
    binaries and write the release notes.
 
@@ -36,8 +37,15 @@ The current version lives in `.github/.release-please-manifest.json`; config is 
 **Why GoReleaser runs inside the Release Please workflow:** a tag created with the
 workflow's own `GITHUB_TOKEN` does not start other workflows, so the tag push would never
 fire `release.yml` on its own. The Release Please workflow calls `release.yml` directly
-(`workflow_call`) when a release is created. For the same reason, it starts `ci.yml` on
-the release PR's branch with `workflow_dispatch`, so the required checks report on it.
+(`workflow_call`) when a release is created.
+
+**Why the release PR shows required checks as "Expected":** GitHub starts no workflows for a
+PR opened with `GITHUB_TOKEN`, and checks from a `workflow_dispatch` run never count toward a
+PR's required checks. The release PR only bumps the manifest, and the code it releases already
+passed CI on `main`, so an admin merge past the waiting checks is the intended path. To get CI
+on release PRs instead, give release-please a PAT or GitHub App token; that also makes the tag
+push start `release.yml` by itself, so the `goreleaser` job in `release-please.yml` would then
+have to go.
 
 ### Manual fallback — push a tag yourself
 
@@ -106,7 +114,7 @@ you merge 5 PRs and then merge the release PR once, all 5 ride along in that sin
 | You do this… | …this runs | Result |
 |---|---|---|
 | Merge the release PR | **Release Please** → `release.yml` (GoReleaser) | Tag `vX.Y.Z` + GitHub Release w/ 6 binaries + `checksums.txt` |
-| Push / merge to `main` | **Release Please** | Release PR opened or updated, and CI started on it |
+| Push / merge to `main` | **Release Please** | Release PR opened or updated |
 | Push / merge to `main` | **CI** (`ci.yml`) | build & test + lint (no release!) |
 | `git push origin vX.Y.Z` (a tag, manual fallback) | **Release** (`release.yml` → GoReleaser) | GitHub Release w/ 6 binaries + `checksums.txt` |
 | Push / merge to `main` **that changes a shipped file** (`SKILL.md`, `SECURITY.md`, `config.example.json`, `docs/MACHINE_CONTRACT.md`), `.clawhubignore` or `.gitignore` | **Publish to ClawHub** | Skill republished to ClawHub |
@@ -212,9 +220,6 @@ end up with two different "v1.0.1"s, which is the thing versioning exists to pre
 ## Known quirks / gotchas
 
 - **Tags must start with `v`** — the release workflow only triggers on `v*`.
-- **Release PR checks:** if the release PR shows required checks as "Expected — waiting",
-  re-run the latest **Release Please** run on `main`; its last step starts CI on the release
-  branch.
 - **golangci-lint vs. toolchain:** golangci-lint embeds the Go type-checker of the Go
   version it was built with, so the linter must be built with a Go **≥** the toolchain
   it lints under. `ci.yml`'s lint job pins Go `1.26.x` with golangci-lint `v2.12.2`

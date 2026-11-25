@@ -30,8 +30,8 @@ bumps MINOR, `feat!:` or a `BREAKING CHANGE:` footer bumps MAJOR. Commits like `
 `docs:`, `test:` and `chore:` alone don't open a release PR. To force a specific version,
 add a commit to `main` with a `Release-As: X.Y.Z` footer.
 
-The current version lives in `.release-please-manifest.json`; config is in
-`release-please-config.json`. There is still no `CHANGELOG.md` (`skip-changelog`).
+The current version lives in `.github/.release-please-manifest.json`; config is in
+`.github/release-please-config.json` (under `.github/` so ClawHub never ships them). There is still no `CHANGELOG.md` (`skip-changelog`).
 
 **Why GoReleaser runs inside the Release Please workflow:** a tag created with the
 workflow's own `GITHUB_TOKEN` does not start other workflows, so the tag push would never
@@ -49,7 +49,7 @@ git tag -a v1.0.1 -m "v1.0.1 — short summary of what changed"
 git push origin v1.0.1
 ```
 
-If you do this, also update `.release-please-manifest.json` to the same version in a PR,
+If you do this, also update `.github/.release-please-manifest.json` to the same version in a PR,
 or release-please will propose a version based on its last release.
 
 ---

@@ -145,6 +145,7 @@ reservation fails (exit 3), `--date --json` still prints the `template_code` wit
   unit on the machine on first use and adjust if needed)
 - `mode` — 1 Standard, 2 Eccentric, 3 Isokinetic, 4 Constant, 5 Spotter
 - `rest` — seconds
+- `seconds` — optional; makes the set timed (duration in seconds, `reps` ignored), for moves where the cable doesn't move
 
 Always `--dry-run` first when authoring new programs to confirm exercise ids resolved.
 

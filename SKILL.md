@@ -315,6 +315,7 @@ reservation fails (exit 3), `--date --json` still prints the `template_code` wit
 | `weight` | float | **Kilograms** |
 | `mode` | int | 1=Standard, 2=Eccentric, 3=Isokinetic, 4=Constant, 5=Spotter |
 | `rest` | int | Seconds between sets |
+| `seconds` | int | Optional. Makes the set timed instead of rep-counted, for moves where the cable doesn't move (e.g. a Nordic curl with the machine holding your legs). `reps` is ignored |
 
 ### Storing what you read
 

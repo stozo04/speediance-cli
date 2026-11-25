@@ -69,12 +69,13 @@ behavior ships with its guard in the **same** PR (see `.claude/CLAWHUB_STANDARDS
 
 Commit subjects follow [Conventional Commits](https://www.conventionalcommits.org)
 (`feat:`, `fix:`, `docs:`, `test:`, `chore:`) — this is **load-bearing, not cosmetic**.
-Releases are cut by pushing a `vX.Y.Z` git tag (never by merging), and GoReleaser
-auto-builds the GitHub Release notes by **grouping commit subjects** (`feat:` → Features,
-`fix:` → Bug fixes, else → Other changes; `docs:`/`test:`/`chore:` excluded) plus a static
-install footer — there is **no `CHANGELOG.md`**. Use the right prefix so the changelog groups
-cleanly, and squash-merge PRs with a clean Conventional-Commit title. Full release playbook
-(versioning, tagging, dry-runs): `RELEASING.md`.
+release-please keeps a `chore(main): release X.Y.Z` PR open and picks the version from
+commit types; merging that PR tags `vX.Y.Z`, and GoReleaser builds the binaries and the GitHub
+Release notes by **grouping commit subjects** (`feat:` → Features, `fix:` → Bug fixes, else →
+Other changes; `docs:`/`test:`/`chore:` excluded) plus a static install footer — there is **no
+`CHANGELOG.md`**. Use the right prefix so the version and changelog come out right, and
+squash-merge PRs with a clean Conventional-Commit title. Full release playbook
+(versioning, release PR, manual tag fallback, dry-runs): `RELEASING.md`.
 
 ## Scope — don't add a `doctor`/health command
 

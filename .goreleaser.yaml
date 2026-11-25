@@ -68,7 +68,7 @@ changelog:
     exclude:
       - "^docs:"
       - "^test:"
-      - "^chore:"
+      - '^chore(\(.+\))?:'
   # Group the auto-generated changelog by Conventional Commit type, so every tagged
   # release gets organized notes with no manual step. Commits without a recognized
   # prefix fall into "Other changes". Use feat:/fix: to land in a section.
@@ -83,6 +83,7 @@ changelog:
       order: 999
 
 release:
+  mode: replace
   draft: false
   prerelease: auto
   # Static, version-agnostic footer appended to every release body (the per-release

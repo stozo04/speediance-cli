@@ -4,12 +4,17 @@ on:
   push:
     tags:
       - "v*"
+  workflow_call:
+    inputs:
+      tag:
+        required: true
+        type: string
 
 permissions:
   contents: read
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: release-${{ inputs.tag || github.ref }}
   cancel-in-progress: false
 
 jobs:
@@ -21,6 +26,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          ref: ${{ inputs.tag || github.ref }}
           fetch-depth: 0 # full history so the changelog can be built.
 
       - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
